@@ -467,12 +467,11 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 3px s
   background-image: url("/assets/pet-spritesheet.png");
   background-repeat: no-repeat;
   background-size: 1030.5px 1536px;
-  background-position: 0 0;
-  animation: pet-idle 5.4s step-end infinite;
+  background-position: 0 7px;
+  will-change: background-position;
   pointer-events: none;
 }
-.desktop-pet.is-dragging .pet-sprite { animation: none; background-position: 0 0; }
-.desktop-pet.is-waving .pet-sprite { animation: pet-wave 1.05s step-end 1; }
+.desktop-pet.is-dragging .pet-sprite { background-position: 0 7px; }
 .pet-tooltip {
   position: absolute;
   left: 50%;
@@ -510,21 +509,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes breathe { 50% { box-shadow: 0 0 0 7px rgba(169,79,105,.04); } }
-@keyframes pet-idle {
-  0%, 22% { background-position: 0 0; }
-  24%, 36% { background-position: -129px 0; }
-  38%, 50% { background-position: -258px 0; }
-  52%, 64% { background-position: -387px 0; }
-  66%, 78% { background-position: -516px 0; }
-  80%, 100% { background-position: -645px 0; }
-}
-@keyframes pet-wave {
-  0%, 20% { background-position: 0 -421px; }
-  25%, 45% { background-position: -129px -421px; }
-  50%, 70% { background-position: -258px -421px; }
-  75%, 100% { background-position: -387px -421px; }
-}
-
 @media (max-width: 1120px) {
   .workspace { grid-template-columns: 240px minmax(380px, 1fr); overflow-y: auto; overscroll-behavior: contain; }
   .viewer-workspace { grid-template-columns: 240px minmax(0, 1fr); overflow: hidden; }

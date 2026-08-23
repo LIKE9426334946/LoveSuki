@@ -40,5 +40,10 @@ test("serves a display-only home page and a separate admin route", async () => {
     const petResponse = await fetch(`${baseUrl}/assets/pet-spritesheet.png`, { method: "HEAD" });
     assert.equal(petResponse.status, 200);
     assert.equal(petResponse.headers.get("content-type"), "image/png");
+
+    const petModuleResponse = await fetch(`${baseUrl}/scripts/modules/desktop-pet.js`);
+    const petModule = await petModuleResponse.text();
+    assert.equal(petModuleResponse.status, 200);
+    assert.match(petModule, /runRight|turnLeft|PET_AMBIENT_ACTIONS/);
   });
 });
