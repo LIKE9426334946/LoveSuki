@@ -1,0 +1,17 @@
+[Unit]
+Description=LoveSuki Node.js Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/LoveSuki
+ExecStart=/usr/bin/node /opt/LoveSuki/backend/server.js
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=3023
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
