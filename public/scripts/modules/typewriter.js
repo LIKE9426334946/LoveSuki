@@ -1,4 +1,5 @@
 import { TextCursor } from "./text-cursor.js";
+import { DomTextCursor } from "./dom-text-cursor.js";
 
 export class Typewriter {
   constructor({ target, getDelay, onProgress, onStateChange }) {
@@ -9,6 +10,7 @@ export class Typewriter {
     this.cursor = new TextCursor("");
     this.textNode = document.createTextNode("");
     this.target.replaceChildren(this.textNode);
+    this.mode = "text";
     this.state = "idle";
     this.frameId = null;
     this.lastTimestamp = null;
@@ -20,10 +22,26 @@ export class Typewriter {
     this.cursor = new TextCursor(text);
     this.textNode = document.createTextNode("");
     this.target.replaceChildren(this.textNode);
-    this.lastTimestamp = null;
-    this.accumulator = 0;
+    this.mode = "text";
+    this.resetTiming();
     this.setState("ready");
     this.emitProgress();
+  }
+
+  loadHtml(html) {
+    this.cancelFrame();
+    this.target.innerHTML = html;
+    this.cursor = new DomTextCursor(this.target);
+    this.textNode = null;
+    this.mode = "html";
+    this.resetTiming();
+    this.setState("ready");
+    this.emitProgress();
+  }
+
+  resetTiming() {
+    this.lastTimestamp = null;
+    this.accumulator = 0;
   }
 
   start() {
@@ -44,7 +62,7 @@ export class Typewriter {
   restart(autoplay = true) {
     this.cancelFrame();
     this.cursor.reset();
-    this.textNode.nodeValue = "";
+    if (this.textNode) this.textNode.nodeValue = "";
     this.lastTimestamp = null;
     this.accumulator = 0;
     this.setState(autoplay ? "playing" : "ready");
@@ -58,7 +76,9 @@ export class Typewriter {
   clear() {
     this.cancelFrame();
     this.cursor = new TextCursor("");
-    this.textNode.nodeValue = "";
+    this.textNode = document.createTextNode("");
+    this.target.replaceChildren(this.textNode);
+    this.mode = "text";
     this.lastTimestamp = null;
     this.accumulator = 0;
     this.setState("idle");
@@ -77,13 +97,16 @@ export class Typewriter {
 
     if (charactersToWrite > 0) {
       let chunk = "";
+      let writtenCharacters = 0;
       for (let index = 0; index < charactersToWrite; index += 1) {
         const character = this.cursor.next();
         if (character.done) break;
-        chunk += character.value;
+        writtenCharacters += 1;
+        if (character.node) character.node.appendData(character.value);
+        else chunk += character.value;
       }
-      this.textNode.appendData(chunk);
-      this.accumulator -= charactersToWrite * delay;
+      if (chunk && this.textNode) this.textNode.appendData(chunk);
+      this.accumulator -= writtenCharacters * delay;
       this.emitProgress();
     }
 

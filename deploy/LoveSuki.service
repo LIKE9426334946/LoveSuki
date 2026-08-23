@@ -10,6 +10,7 @@ ExecStart=/usr/bin/node /opt/LoveSuki/backend/server.js
 Environment=NODE_ENV=production
 Environment=HOST=127.0.0.1
 Environment=PORT=3023
+Environment=DATA_DIR=/opt/LoveSuki/data
 Restart=always
 RestartSec=3
 

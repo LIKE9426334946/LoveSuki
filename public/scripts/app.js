@@ -1,32 +1,37 @@
 import { createFullscreenController } from "./modules/fullscreen.js";
 import { Typewriter } from "./modules/typewriter.js";
 
-const elements = {
-  characterCount: document.querySelector("#characterCount"),
-  clearButton: document.querySelector("#clearButton"),
-  displayPanel: document.querySelector(".display-panel"),
-  displaySurface: document.querySelector("#displaySurface"),
-  editorMessage: document.querySelector("#editorMessage"),
-  emptyState: document.querySelector("#emptyState"),
-  fullscreenButton: document.querySelector("#fullscreenButton"),
-  playIcon: document.querySelector("#playIcon path"),
-  playbackButton: document.querySelector("#playbackButton"),
-  playbackLabel: document.querySelector("#playbackLabel"),
-  progressFill: document.querySelector("#progressFill"),
-  progressPercent: document.querySelector("#progressPercent"),
-  progressText: document.querySelector("#progressText"),
-  renderedText: document.querySelector("#renderedText"),
-  restartButton: document.querySelector("#restartButton"),
-  speedOutput: document.querySelector("#speedOutput"),
-  speedRange: document.querySelector("#speedRange"),
-  startButton: document.querySelector("#startButton"),
-  statusDot: document.querySelector("#statusDot"),
-  statusText: document.querySelector("#statusText"),
-  textInput: document.querySelector("#textInput")
+const elements = Object.fromEntries([
+  "articleDialog", "articleDialogMessage", "articleDirectory", "articleForm", "articleTitle",
+  "characterCount", "deleteArticleButton", "directoryDialog", "directoryDialogMessage",
+  "directoryDialogMode", "directoryDialogTitle", "directoryForm", "directoryList", "directoryName",
+  "editingDirectoryId", "editorContent", "editorEmpty", "editorMessage", "emptyNewDirectoryButton",
+  "emptyState", "fullscreenButton", "libraryEmpty", "libraryLoading", "newArticleDirectory",
+  "newArticleTitle", "newDirectoryButton", "playbackButton", "playbackLabel", "playIcon",
+  "progressFill", "progressPercent", "progressText", "renderedText", "restartButton", "saveButton",
+  "saveState", "serverStatusDot", "serverStatusText", "speedOutput", "speedRange", "startButton",
+  "statusDot", "statusText", "textInput"
+].map((id) => [id, document.querySelector(`#${id}`)]));
+
+elements.displayPanel = document.querySelector(".display-panel");
+elements.displaySurface = document.querySelector("#displaySurface");
+
+const state = {
+  library: { directories: [] },
+  selectedDirectoryId: null,
+  currentArticle: null,
+  dirty: false,
+  saving: false,
+  articleRequest: 0,
+  openDirectoryIds: new Set()
 };
 
 const playPath = "M8 5.7v12.6a1 1 0 0 0 1.53.85l9.4-6.3a1 1 0 0 0 0-1.7l-9.4-6.3A1 1 0 0 0 8 5.7Z";
 const pausePath = "M7 5h3v14H7V5Zm7 0h3v14h-3V5Z";
+const folderPath = "M3 5.5A1.5 1.5 0 0 1 4.5 4h5l2 2h8A1.5 1.5 0 0 1 21 7.5v10a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5v-12Z";
+const chevronPath = "m9 5 7 7-7 7V5Z";
+const editPath = "m5 16.6-.8 3.2 3.2-.8L18 8.4 15.6 6 5 16.6ZM17 4.6l2.4 2.4.8-.8a1.7 1.7 0 0 0 0-2.4 1.7 1.7 0 0 0-2.4 0l-.8.8Z";
+const trashPath = "M7 6V4h3l1-1h2l1 1h3v2H7Zm1 2h8l-.6 12H8.6L8 8Zm2 2 .3 8h1L11 10h-1Zm3 0-.3 8h1l.3-8h-1Z";
 
 const typewriter = new Typewriter({
   target: elements.renderedText,
@@ -35,27 +40,378 @@ const typewriter = new Typewriter({
   onStateChange: updatePlaybackState
 });
 
-createFullscreenController({
-  element: elements.displayPanel,
-  button: elements.fullscreenButton
-});
+createFullscreenController({ element: elements.displayPanel, button: elements.fullscreenButton });
 
-function startFromInput() {
+async function api(path, options = {}) {
+  const requestOptions = { ...options, headers: { ...(options.headers || {}) } };
+  if (options.body) requestOptions.headers["Content-Type"] = "application/json";
+
+  const response = await fetch(path, requestOptions);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `请求失败（${response.status}）`);
+  return data;
+}
+
+async function initialize() {
+  try {
+    await refreshLibrary();
+    setServerStatus("online", "已连接");
+
+    const firstDirectory = state.library.directories[0];
+    if (firstDirectory) {
+      state.selectedDirectoryId = firstDirectory.id;
+      state.openDirectoryIds.add(firstDirectory.id);
+      renderLibrary();
+      if (firstDirectory.articles[0]) await selectArticle(firstDirectory.articles[0].id, { skipGuard: true });
+    }
+  } catch (error) {
+    setServerStatus("error", "连接失败");
+    elements.libraryLoading.innerHTML = `<span>无法读取文章库：${escapeHtml(error.message)}</span>`;
+  }
+}
+
+async function refreshLibrary() {
+  const data = await api("/api/library");
+  state.library = data;
+  elements.libraryLoading.hidden = true;
+  elements.directoryList.hidden = data.directories.length === 0;
+  elements.libraryEmpty.hidden = data.directories.length > 0;
+  updateDirectorySelects();
+  renderLibrary();
+}
+
+function renderLibrary() {
+  elements.directoryList.replaceChildren();
+
+  for (const directory of state.library.directories) {
+    const card = document.createElement("section");
+    const isOpen = state.openDirectoryIds.has(directory.id);
+    const isActive = state.selectedDirectoryId === directory.id;
+    card.className = `directory-card${isOpen ? " is-open" : ""}${isActive ? " is-active" : ""}`;
+
+    const header = document.createElement("div");
+    header.className = "directory-header";
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "directory-toggle";
+    toggle.innerHTML = `<svg class="directory-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="${folderPath}" /></svg><span class="directory-title-wrap"><span class="directory-name"></span><span class="directory-count"></span></span><svg class="directory-chevron" aria-hidden="true" viewBox="0 0 24 24"><path d="${chevronPath}" /></svg>`;
+    toggle.querySelector(".directory-name").textContent = directory.name;
+    toggle.querySelector(".directory-count").textContent = `${directory.articles.length} 篇文章`;
+    toggle.addEventListener("click", () => {
+      state.selectedDirectoryId = directory.id;
+      if (state.openDirectoryIds.has(directory.id)) state.openDirectoryIds.delete(directory.id);
+      else state.openDirectoryIds.add(directory.id);
+      renderLibrary();
+    });
+
+    const actions = document.createElement("div");
+    actions.className = "directory-actions";
+    actions.append(
+      createMiniButton("重命名目录", editPath, () => openRenameDirectoryDialog(directory)),
+      createMiniButton("删除目录", trashPath, () => deleteDirectory(directory), true)
+    );
+
+    header.append(toggle, actions);
+    card.append(header);
+
+    if (isOpen) {
+      const articleList = document.createElement("div");
+      articleList.className = "article-list";
+
+      for (const article of directory.articles) {
+        const row = document.createElement("div");
+        row.className = "article-item";
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `article-button${state.currentArticle?.id === article.id ? " is-active" : ""}`;
+        button.innerHTML = `<span class="article-dot" aria-hidden="true"></span><span class="article-title-text"></span>`;
+        button.querySelector(".article-title-text").textContent = article.title;
+        button.addEventListener("click", () => selectArticle(article.id));
+        row.append(button);
+        articleList.append(row);
+      }
+
+      const createButton = document.createElement("button");
+      createButton.type = "button";
+      createButton.className = "new-article-button";
+      createButton.textContent = "+ 新建文章";
+      createButton.addEventListener("click", () => openArticleDialog(directory.id));
+      articleList.append(createButton);
+      card.append(articleList);
+    }
+
+    elements.directoryList.append(card);
+  }
+}
+
+function createMiniButton(label, iconPath, handler, danger = false) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `mini-icon-button${danger ? " danger" : ""}`;
+  button.title = label;
+  button.setAttribute("aria-label", label);
+  button.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24"><path d="${iconPath}" /></svg>`;
+  button.addEventListener("click", handler);
+  return button;
+}
+
+async function selectArticle(articleId, { skipGuard = false } = {}) {
+  if (state.currentArticle?.id === articleId) return;
+  if (!skipGuard && !canDiscardChanges()) return;
+
+  const requestId = ++state.articleRequest;
+  setSaveState("正在读取…", "saving");
+  try {
+    const { article } = await api(`/api/articles/${encodeURIComponent(articleId)}`);
+    if (requestId !== state.articleRequest) return;
+
+    state.currentArticle = article;
+    state.selectedDirectoryId = article.directoryId;
+    state.openDirectoryIds.add(article.directoryId);
+    state.dirty = false;
+    populateEditor(article);
+    resetDisplay();
+    renderLibrary();
+  } catch (error) {
+    showEditorMessage(error.message);
+    setSaveState("读取失败", "dirty");
+  }
+}
+
+function populateEditor(article) {
+  elements.editorEmpty.hidden = true;
+  elements.editorContent.hidden = false;
+  elements.articleTitle.value = article.title;
+  elements.articleDirectory.value = article.directoryId;
+  elements.textInput.value = article.content;
+  updateCharacterCount();
+  setSaveState("已保存");
+  showEditorMessage("");
+}
+
+function clearEditor() {
+  state.currentArticle = null;
+  state.dirty = false;
+  elements.editorContent.hidden = true;
+  elements.editorEmpty.hidden = false;
+  elements.articleTitle.value = "";
+  elements.textInput.value = "";
+  resetDisplay();
+  renderLibrary();
+}
+
+function markDirty() {
+  if (!state.currentArticle || state.saving) return;
+  state.dirty = true;
+  setSaveState("有未保存修改", "dirty");
+  updateCharacterCount();
+}
+
+async function saveArticle() {
+  if (!state.currentArticle || state.saving) return false;
+  const title = elements.articleTitle.value.trim();
+  if (!title) {
+    showEditorMessage("文章标题不能为空。");
+    elements.articleTitle.focus();
+    return false;
+  }
+
+  state.saving = true;
+  elements.saveButton.disabled = true;
+  setSaveState("正在保存…", "saving");
+  showEditorMessage("");
+
+  try {
+    const { article } = await api(`/api/articles/${encodeURIComponent(state.currentArticle.id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        directoryId: elements.articleDirectory.value,
+        title,
+        content: elements.textInput.value
+      })
+    });
+    state.currentArticle = article;
+    state.selectedDirectoryId = article.directoryId;
+    state.openDirectoryIds.add(article.directoryId);
+    state.dirty = false;
+    setSaveState("已保存");
+    await refreshLibrary();
+    return true;
+  } catch (error) {
+    showEditorMessage(error.message);
+    setSaveState("保存失败", "dirty");
+    return false;
+  } finally {
+    state.saving = false;
+    elements.saveButton.disabled = false;
+  }
+}
+
+async function deleteArticle() {
+  if (!state.currentArticle) return;
+  if (!window.confirm(`确定删除文章“${state.currentArticle.title}”吗？删除后无法恢复。`)) return;
+
+  const articleId = state.currentArticle.id;
+  try {
+    await api(`/api/articles/${encodeURIComponent(articleId)}`, { method: "DELETE" });
+    clearEditor();
+    await refreshLibrary();
+  } catch (error) {
+    showEditorMessage(error.message);
+  }
+}
+
+function openDirectoryDialog() {
+  elements.directoryDialogMode.value = "create";
+  elements.editingDirectoryId.value = "";
+  elements.directoryDialogTitle.textContent = "新建目录";
+  elements.directoryName.value = "";
+  elements.directoryDialogMessage.textContent = "";
+  elements.directoryDialog.showModal();
+  queueMicrotask(() => elements.directoryName.focus());
+}
+
+function openRenameDirectoryDialog(directory) {
+  elements.directoryDialogMode.value = "rename";
+  elements.editingDirectoryId.value = directory.id;
+  elements.directoryDialogTitle.textContent = "重命名目录";
+  elements.directoryName.value = directory.name;
+  elements.directoryDialogMessage.textContent = "";
+  elements.directoryDialog.showModal();
+  queueMicrotask(() => elements.directoryName.select());
+}
+
+async function submitDirectory(event) {
+  event.preventDefault();
+  const name = elements.directoryName.value.trim();
+  if (!name) return;
+
+  try {
+    if (elements.directoryDialogMode.value === "rename") {
+      const directoryId = elements.editingDirectoryId.value;
+      await api(`/api/directories/${encodeURIComponent(directoryId)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name })
+      });
+    } else {
+      const { directory } = await api("/api/directories", {
+        method: "POST",
+        body: JSON.stringify({ name })
+      });
+      state.selectedDirectoryId = directory.id;
+      state.openDirectoryIds.add(directory.id);
+    }
+    elements.directoryDialog.close();
+    await refreshLibrary();
+  } catch (error) {
+    elements.directoryDialogMessage.textContent = error.message;
+  }
+}
+
+async function deleteDirectory(directory) {
+  const detail = directory.articles.length ? `其中的 ${directory.articles.length} 篇文章也会一起删除。` : "";
+  if (!window.confirm(`确定删除目录“${directory.name}”吗？${detail}`)) return;
+
+  if (state.currentArticle?.directoryId === directory.id && state.dirty && !canDiscardChanges()) return;
+
+  try {
+    await api(`/api/directories/${encodeURIComponent(directory.id)}`, { method: "DELETE" });
+    if (state.currentArticle?.directoryId === directory.id) clearEditor();
+    state.openDirectoryIds.delete(directory.id);
+    state.selectedDirectoryId = null;
+    await refreshLibrary();
+  } catch (error) {
+    window.alert(error.message);
+  }
+}
+
+function openArticleDialog(directoryId = state.selectedDirectoryId) {
+  if (!state.library.directories.length) {
+    openDirectoryDialog();
+    return;
+  }
+  updateDirectorySelects();
+  elements.newArticleDirectory.value = directoryId || state.library.directories[0].id;
+  elements.newArticleTitle.value = "";
+  elements.articleDialogMessage.textContent = "";
+  elements.articleDialog.showModal();
+  queueMicrotask(() => elements.newArticleTitle.focus());
+}
+
+async function submitArticle(event) {
+  event.preventDefault();
+  const title = elements.newArticleTitle.value.trim();
+  if (!title) return;
+
+  try {
+    const { article } = await api("/api/articles", {
+      method: "POST",
+      body: JSON.stringify({
+        directoryId: elements.newArticleDirectory.value,
+        title,
+        content: ""
+      })
+    });
+    elements.articleDialog.close();
+    state.selectedDirectoryId = article.directoryId;
+    state.openDirectoryIds.add(article.directoryId);
+    await refreshLibrary();
+    await selectArticle(article.id, { skipGuard: true });
+    elements.textInput.focus();
+  } catch (error) {
+    elements.articleDialogMessage.textContent = error.message;
+  }
+}
+
+function updateDirectorySelects() {
+  for (const select of [elements.articleDirectory, elements.newArticleDirectory]) {
+    const previousValue = select.value;
+    select.replaceChildren();
+    for (const directory of state.library.directories) {
+      const option = document.createElement("option");
+      option.value = directory.id;
+      option.textContent = directory.name;
+      select.append(option);
+    }
+    if ([...select.options].some((option) => option.value === previousValue)) select.value = previousValue;
+  }
+}
+
+async function startFromEditor() {
   const content = elements.textInput.value;
   if (!content.trim()) {
-    elements.editorMessage.textContent = "先输入一些文字，再开始显示吧。";
+    showEditorMessage("先写一些 Markdown 内容，再开始显示吧。");
     elements.textInput.focus();
     return;
   }
 
-  elements.editorMessage.textContent = "";
-  elements.emptyState.hidden = true;
-  elements.renderedText.classList.add("is-visible");
-  typewriter.load(content);
-  typewriter.start();
+  elements.startButton.disabled = true;
+  showEditorMessage("正在解析 Markdown…");
+  try {
+    const { html } = await api("/api/markdown/render", {
+      method: "POST",
+      body: JSON.stringify({ content })
+    });
+    elements.emptyState.hidden = true;
+    elements.renderedText.classList.add("is-visible");
+    typewriter.loadHtml(html);
+    typewriter.start();
+    showEditorMessage("");
+  } catch (error) {
+    showEditorMessage(error.message);
+  } finally {
+    elements.startButton.disabled = false;
+  }
 }
 
-function updatePlaybackState(state) {
+function resetDisplay() {
+  typewriter.clear();
+  elements.renderedText.classList.remove("is-visible");
+  elements.emptyState.hidden = false;
+}
+
+function updatePlaybackState(playbackState) {
   const states = {
     idle: { label: "暂停", status: "等待开始", playing: false, disabled: true },
     ready: { label: "继续", status: "准备显示", playing: false, disabled: false },
@@ -63,13 +419,11 @@ function updatePlaybackState(state) {
     paused: { label: "继续", status: "已暂停", playing: false, disabled: false },
     completed: { label: "再看一次", status: "显示完成", playing: false, disabled: false }
   };
-  const current = states[state];
-
+  const current = states[playbackState];
   elements.statusText.textContent = current.status;
   elements.statusDot.classList.toggle("is-playing", current.playing);
-  elements.renderedText.classList.toggle("is-typing", current.playing);
   elements.playbackButton.disabled = current.disabled;
-  elements.restartButton.disabled = state === "idle";
+  elements.restartButton.disabled = playbackState === "idle";
   elements.playbackLabel.textContent = current.label;
   elements.playIcon.setAttribute("d", current.playing ? pausePath : playPath);
 }
@@ -79,17 +433,13 @@ function updateProgress({ current, total, ratio }) {
   elements.progressText.textContent = `${formatNumber(current)} / ${formatNumber(total)}`;
   elements.progressPercent.textContent = `${percent}%`;
   elements.progressFill.style.width = `${percent}%`;
-
-  if (current > 0 && current % 12 === 0) {
-    elements.displaySurface.scrollTop = elements.displaySurface.scrollHeight;
-  }
+  if (current > 0 && current % 20 < 4) elements.displaySurface.scrollTop = elements.displaySurface.scrollHeight;
 }
 
-function updateCharacterCount() {
-  // String length is intentionally O(1), so editing very large pasted text does
-  // not trigger a full scan on every input event.
-  const length = elements.textInput.value.length;
-  elements.characterCount.textContent = `${formatNumber(length)} 字`;
+function togglePlayback() {
+  if (typewriter.state === "playing") typewriter.pause();
+  else if (typewriter.state === "completed") typewriter.restart();
+  else typewriter.start();
 }
 
 function updateSpeed() {
@@ -101,41 +451,80 @@ function updateSpeed() {
   elements.speedRange.style.setProperty("--range-progress", `${percent}%`);
 }
 
-function clearEverything() {
-  elements.textInput.value = "";
-  elements.emptyState.hidden = false;
-  elements.renderedText.classList.remove("is-visible", "is-typing");
-  elements.editorMessage.textContent = "";
-  typewriter.clear();
-  updateCharacterCount();
-  elements.textInput.focus();
+function updateCharacterCount() {
+  elements.characterCount.textContent = `${formatNumber(elements.textInput.value.length)} 字`;
 }
 
-function togglePlayback() {
-  if (typewriter.state === "playing") typewriter.pause();
-  else if (typewriter.state === "completed") typewriter.restart();
-  else typewriter.start();
+function setSaveState(message, kind = "saved") {
+  elements.saveState.textContent = message;
+  elements.saveState.className = `save-state${kind === "dirty" ? " is-dirty" : kind === "saving" ? " is-saving" : ""}`;
+}
+
+function showEditorMessage(message) {
+  elements.editorMessage.textContent = message;
+}
+
+function setServerStatus(status, label) {
+  elements.serverStatusText.textContent = label;
+  elements.serverStatusDot.className = `server-dot${status === "online" ? " is-online" : status === "error" ? " is-error" : ""}`;
+}
+
+function canDiscardChanges() {
+  return !state.dirty || window.confirm("当前文章有未保存的修改，确定放弃这些修改吗？");
 }
 
 function formatNumber(value) {
   return new Intl.NumberFormat("zh-CN").format(value);
 }
 
-elements.startButton.addEventListener("click", startFromInput);
-elements.clearButton.addEventListener("click", clearEverything);
+function escapeHtml(value) {
+  const span = document.createElement("span");
+  span.textContent = value;
+  return span.innerHTML;
+}
+
+elements.newDirectoryButton.addEventListener("click", openDirectoryDialog);
+elements.emptyNewDirectoryButton.addEventListener("click", openDirectoryDialog);
+elements.directoryForm.addEventListener("submit", submitDirectory);
+elements.articleForm.addEventListener("submit", submitArticle);
+elements.saveButton.addEventListener("click", saveArticle);
+elements.deleteArticleButton.addEventListener("click", deleteArticle);
+elements.startButton.addEventListener("click", startFromEditor);
 elements.playbackButton.addEventListener("click", togglePlayback);
 elements.restartButton.addEventListener("click", () => typewriter.restart());
 elements.speedRange.addEventListener("input", updateSpeed);
-elements.textInput.addEventListener("input", updateCharacterCount);
+elements.textInput.addEventListener("input", markDirty);
+elements.articleTitle.addEventListener("input", markDirty);
+elements.articleDirectory.addEventListener("change", markDirty);
+
+for (const button of document.querySelectorAll("[data-close-dialog]")) {
+  button.addEventListener("click", () => document.querySelector(`#${button.dataset.closeDialog}`).close());
+}
 
 document.addEventListener("keydown", (event) => {
-  const isTyping = event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement;
-  if (event.code === "Space" && !isTyping && typewriter.state !== "idle") {
+  const isFormControl = event.target instanceof HTMLTextAreaElement
+    || event.target instanceof HTMLInputElement
+    || event.target instanceof HTMLSelectElement;
+
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+    event.preventDefault();
+    saveArticle();
+    return;
+  }
+
+  if (event.code === "Space" && !isFormControl && typewriter.state !== "idle") {
     event.preventDefault();
     togglePlayback();
   }
 });
 
+window.addEventListener("beforeunload", (event) => {
+  if (!state.dirty) return;
+  event.preventDefault();
+  event.returnValue = "";
+});
+
 updateSpeed();
 updateCharacterCount();
 updatePlaybackState("idle");
+initialize();

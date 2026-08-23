@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "A calm, extensible typewriter-style reading experience.",
+  "dependencies": {
+    "markdown-it": "^14.1.0"
+  },
   "scripts": {
     "start": "node backend/server.js",
     "dev": "node --watch backend/server.js",
