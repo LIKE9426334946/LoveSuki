@@ -75,7 +75,7 @@ export function createStaticHandler() {
 
       const headers = {
         ...securityHeaders,
-        "Cache-Control": filePath.endsWith("index.html")
+        "Cache-Control": /\.(?:html|css|js)$/i.test(filePath)
           ? "no-cache"
           : "public, max-age=3600",
         "Content-Length": fileStats.size,
