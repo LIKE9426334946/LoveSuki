@@ -15,6 +15,7 @@ export class Typewriter {
     this.frameId = null;
     this.lastTimestamp = null;
     this.accumulator = 0;
+    this.lastAnchor = null;
   }
 
   load(text) {
@@ -23,6 +24,7 @@ export class Typewriter {
     this.textNode = document.createTextNode("");
     this.target.replaceChildren(this.textNode);
     this.mode = "text";
+    this.lastAnchor = null;
     this.resetTiming();
     this.setState("ready");
     this.emitProgress();
@@ -34,6 +36,7 @@ export class Typewriter {
     this.cursor = new DomTextCursor(this.target);
     this.textNode = null;
     this.mode = "html";
+    this.lastAnchor = null;
     this.resetTiming();
     this.setState("ready");
     this.emitProgress();
@@ -45,7 +48,16 @@ export class Typewriter {
   }
 
   start() {
-    if (!this.cursor.total || this.state === "playing") return;
+    if (this.state === "playing") return;
+
+    if (!this.cursor.total) {
+      if (this.cursor.hasRenderableContent) {
+        this.lastAnchor = this.cursor.finish?.() || null;
+        this.emitProgress();
+        this.setState("completed");
+      }
+      return;
+    }
 
     if (this.state === "completed") this.restart();
     this.lastTimestamp = null;
@@ -63,6 +75,7 @@ export class Typewriter {
     this.cancelFrame();
     this.cursor.reset();
     if (this.textNode) this.textNode.nodeValue = "";
+    this.lastAnchor = null;
     this.lastTimestamp = null;
     this.accumulator = 0;
     this.setState(autoplay ? "playing" : "ready");
@@ -79,6 +92,7 @@ export class Typewriter {
     this.textNode = document.createTextNode("");
     this.target.replaceChildren(this.textNode);
     this.mode = "text";
+    this.lastAnchor = null;
     this.lastTimestamp = null;
     this.accumulator = 0;
     this.setState("idle");
@@ -98,19 +112,24 @@ export class Typewriter {
     if (charactersToWrite > 0) {
       let chunk = "";
       let writtenCharacters = 0;
+      let activeNode = this.lastAnchor;
       for (let index = 0; index < charactersToWrite; index += 1) {
         const character = this.cursor.next();
         if (character.done) break;
         writtenCharacters += 1;
+        if (character.anchor) activeNode = character.anchor;
         if (character.node) character.node.appendData(character.value);
         else chunk += character.value;
       }
       if (chunk && this.textNode) this.textNode.appendData(chunk);
+      this.lastAnchor = activeNode;
       this.accumulator -= writtenCharacters * delay;
       this.emitProgress();
     }
 
     if (this.cursor.position >= this.cursor.total) {
+      this.lastAnchor = this.cursor.finish?.() || this.lastAnchor;
+      this.emitProgress();
       this.frameId = null;
       this.setState("completed");
       return;
@@ -123,7 +142,8 @@ export class Typewriter {
     this.onProgress?.({
       current: this.cursor.position,
       total: this.cursor.total,
-      ratio: this.cursor.total ? this.cursor.position / this.cursor.total : 0
+      ratio: this.cursor.total ? this.cursor.position / this.cursor.total : 0,
+      activeNode: this.lastAnchor
     });
   }
 

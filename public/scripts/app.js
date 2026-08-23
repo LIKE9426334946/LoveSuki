@@ -428,12 +428,36 @@ function updatePlaybackState(playbackState) {
   elements.playIcon.setAttribute("d", current.playing ? pausePath : playPath);
 }
 
-function updateProgress({ current, total, ratio }) {
+function updateProgress({ current, total, ratio, activeNode }) {
   const percent = Math.min(100, Math.round(ratio * 100));
   elements.progressText.textContent = `${formatNumber(current)} / ${formatNumber(total)}`;
   elements.progressPercent.textContent = `${percent}%`;
   elements.progressFill.style.width = `${percent}%`;
-  if (current > 0 && current % 20 < 4) elements.displaySurface.scrollTop = elements.displaySurface.scrollHeight;
+
+  if (current === 0) {
+    elements.displaySurface.scrollTop = 0;
+    return;
+  }
+
+  keepActiveTextVisible(activeNode);
+}
+
+function keepActiveTextVisible(activeNode) {
+  const anchorElement = activeNode?.nodeType === Node.ELEMENT_NODE
+    ? activeNode
+    : activeNode?.parentElement;
+  if (!anchorElement || !elements.displaySurface.contains(anchorElement)) return;
+
+  const surfaceRect = elements.displaySurface.getBoundingClientRect();
+  const anchorRect = anchorElement.getBoundingClientRect();
+  const upperBoundary = surfaceRect.top + Math.min(40, surfaceRect.height * 0.08);
+  const lowerBoundary = surfaceRect.bottom - Math.min(72, surfaceRect.height * 0.18);
+
+  if (anchorRect.bottom > lowerBoundary) {
+    elements.displaySurface.scrollTop += anchorRect.bottom - lowerBoundary;
+  } else if (anchorRect.top < upperBoundary) {
+    elements.displaySurface.scrollTop -= upperBoundary - anchorRect.top;
+  }
 }
 
 function togglePlayback() {
