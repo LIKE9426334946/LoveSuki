@@ -1,20 +1,11 @@
-import { createFullscreenController } from "./modules/fullscreen.js";
-import { Typewriter } from "./modules/typewriter.js";
-
 const elements = Object.fromEntries([
   "articleDialog", "articleDialogMessage", "articleDirectory", "articleForm", "articleTitle",
   "characterCount", "deleteArticleButton", "directoryDialog", "directoryDialogMessage",
   "directoryDialogMode", "directoryDialogTitle", "directoryForm", "directoryList", "directoryName",
   "editingDirectoryId", "editorContent", "editorEmpty", "editorMessage", "emptyNewDirectoryButton",
-  "emptyState", "fullscreenButton", "libraryEmpty", "libraryLoading", "newArticleDirectory",
-  "newArticleTitle", "newDirectoryButton", "playbackButton", "playbackLabel", "playIcon",
-  "progressFill", "progressPercent", "progressText", "renderedText", "restartButton", "saveButton",
-  "saveState", "serverStatusDot", "serverStatusText", "speedOutput", "speedRange", "startButton",
-  "statusDot", "statusText", "textInput"
+  "libraryEmpty", "libraryLoading", "newArticleDirectory", "newArticleTitle", "newDirectoryButton",
+  "saveButton", "saveState", "textInput"
 ].map((id) => [id, document.querySelector(`#${id}`)]));
-
-elements.displayPanel = document.querySelector(".display-panel");
-elements.displaySurface = document.querySelector("#displaySurface");
 
 const state = {
   library: { directories: [] },
@@ -26,21 +17,10 @@ const state = {
   openDirectoryIds: new Set()
 };
 
-const playPath = "M8 5.7v12.6a1 1 0 0 0 1.53.85l9.4-6.3a1 1 0 0 0 0-1.7l-9.4-6.3A1 1 0 0 0 8 5.7Z";
-const pausePath = "M7 5h3v14H7V5Zm7 0h3v14h-3V5Z";
 const folderPath = "M3 5.5A1.5 1.5 0 0 1 4.5 4h5l2 2h8A1.5 1.5 0 0 1 21 7.5v10a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5v-12Z";
 const chevronPath = "m9 5 7 7-7 7V5Z";
 const editPath = "m5 16.6-.8 3.2 3.2-.8L18 8.4 15.6 6 5 16.6ZM17 4.6l2.4 2.4.8-.8a1.7 1.7 0 0 0 0-2.4 1.7 1.7 0 0 0-2.4 0l-.8.8Z";
 const trashPath = "M7 6V4h3l1-1h2l1 1h3v2H7Zm1 2h8l-.6 12H8.6L8 8Zm2 2 .3 8h1L11 10h-1Zm3 0-.3 8h1l.3-8h-1Z";
-
-const typewriter = new Typewriter({
-  target: elements.renderedText,
-  getDelay: () => Number(elements.speedRange.value),
-  onProgress: updateProgress,
-  onStateChange: updatePlaybackState
-});
-
-createFullscreenController({ element: elements.displayPanel, button: elements.fullscreenButton });
 
 async function api(path, options = {}) {
   const requestOptions = { ...options, headers: { ...(options.headers || {}) } };
@@ -55,18 +35,17 @@ async function api(path, options = {}) {
 async function initialize() {
   try {
     await refreshLibrary();
-    setServerStatus("online", "已连接");
-
     const firstDirectory = state.library.directories[0];
-    if (firstDirectory) {
-      state.selectedDirectoryId = firstDirectory.id;
-      state.openDirectoryIds.add(firstDirectory.id);
-      renderLibrary();
-      if (firstDirectory.articles[0]) await selectArticle(firstDirectory.articles[0].id, { skipGuard: true });
+    if (!firstDirectory) return;
+
+    state.selectedDirectoryId = firstDirectory.id;
+    state.openDirectoryIds.add(firstDirectory.id);
+    renderLibrary();
+    if (firstDirectory.articles[0]) {
+      await selectArticle(firstDirectory.articles[0].id, { skipGuard: true });
     }
   } catch (error) {
-    setServerStatus("error", "连接失败");
-    elements.libraryLoading.innerHTML = `<span>无法读取文章库：${escapeHtml(error.message)}</span>`;
+    elements.libraryLoading.textContent = `无法读取文章库：${error.message}`;
   }
 }
 
@@ -120,14 +99,15 @@ function renderLibrary() {
       articleList.className = "article-list";
 
       for (const article of directory.articles) {
-        const row = document.createElement("div");
-        row.className = "article-item";
         const button = document.createElement("button");
         button.type = "button";
         button.className = `article-button${state.currentArticle?.id === article.id ? " is-active" : ""}`;
-        button.innerHTML = `<span class="article-dot" aria-hidden="true"></span><span class="article-title-text"></span>`;
+        button.innerHTML = '<span class="article-dot" aria-hidden="true"></span><span class="article-title-text"></span>';
         button.querySelector(".article-title-text").textContent = article.title;
         button.addEventListener("click", () => selectArticle(article.id));
+
+        const row = document.createElement("div");
+        row.className = "article-item";
         row.append(button);
         articleList.append(row);
       }
@@ -171,7 +151,6 @@ async function selectArticle(articleId, { skipGuard = false } = {}) {
     state.openDirectoryIds.add(article.directoryId);
     state.dirty = false;
     populateEditor(article);
-    resetDisplay();
     renderLibrary();
   } catch (error) {
     showEditorMessage(error.message);
@@ -197,7 +176,6 @@ function clearEditor() {
   elements.editorEmpty.hidden = false;
   elements.articleTitle.value = "";
   elements.textInput.value = "";
-  resetDisplay();
   renderLibrary();
 }
 
@@ -252,9 +230,8 @@ async function deleteArticle() {
   if (!state.currentArticle) return;
   if (!window.confirm(`确定删除文章“${state.currentArticle.title}”吗？删除后无法恢复。`)) return;
 
-  const articleId = state.currentArticle.id;
   try {
-    await api(`/api/articles/${encodeURIComponent(articleId)}`, { method: "DELETE" });
+    await api(`/api/articles/${encodeURIComponent(state.currentArticle.id)}`, { method: "DELETE" });
     clearEditor();
     await refreshLibrary();
   } catch (error) {
@@ -289,8 +266,7 @@ async function submitDirectory(event) {
 
   try {
     if (elements.directoryDialogMode.value === "rename") {
-      const directoryId = elements.editingDirectoryId.value;
-      await api(`/api/directories/${encodeURIComponent(directoryId)}`, {
+      await api(`/api/directories/${encodeURIComponent(elements.editingDirectoryId.value)}`, {
         method: "PATCH",
         body: JSON.stringify({ name })
       });
@@ -312,7 +288,6 @@ async function submitDirectory(event) {
 async function deleteDirectory(directory) {
   const detail = directory.articles.length ? `其中的 ${directory.articles.length} 篇文章也会一起删除。` : "";
   if (!window.confirm(`确定删除目录“${directory.name}”吗？${detail}`)) return;
-
   if (state.currentArticle?.directoryId === directory.id && state.dirty && !canDiscardChanges()) return;
 
   try {
@@ -374,109 +349,14 @@ function updateDirectorySelects() {
       option.textContent = directory.name;
       select.append(option);
     }
-    if ([...select.options].some((option) => option.value === previousValue)) select.value = previousValue;
+    if ([...select.options].some((option) => option.value === previousValue)) {
+      select.value = previousValue;
+    }
   }
-}
-
-async function startFromEditor() {
-  const content = elements.textInput.value;
-  if (!content.trim()) {
-    showEditorMessage("先写一些 Markdown 内容，再开始显示吧。");
-    elements.textInput.focus();
-    return;
-  }
-
-  elements.startButton.disabled = true;
-  showEditorMessage("正在解析 Markdown…");
-  try {
-    const { html } = await api("/api/markdown/render", {
-      method: "POST",
-      body: JSON.stringify({ content })
-    });
-    elements.emptyState.hidden = true;
-    elements.renderedText.classList.add("is-visible");
-    typewriter.loadHtml(html);
-    typewriter.start();
-    showEditorMessage("");
-  } catch (error) {
-    showEditorMessage(error.message);
-  } finally {
-    elements.startButton.disabled = false;
-  }
-}
-
-function resetDisplay() {
-  typewriter.clear();
-  elements.renderedText.classList.remove("is-visible");
-  elements.emptyState.hidden = false;
-}
-
-function updatePlaybackState(playbackState) {
-  const states = {
-    idle: { label: "暂停", status: "等待开始", playing: false, disabled: true },
-    ready: { label: "继续", status: "准备显示", playing: false, disabled: false },
-    playing: { label: "暂停", status: "正在显示", playing: true, disabled: false },
-    paused: { label: "继续", status: "已暂停", playing: false, disabled: false },
-    completed: { label: "再看一次", status: "显示完成", playing: false, disabled: false }
-  };
-  const current = states[playbackState];
-  elements.statusText.textContent = current.status;
-  elements.statusDot.classList.toggle("is-playing", current.playing);
-  elements.playbackButton.disabled = current.disabled;
-  elements.restartButton.disabled = playbackState === "idle";
-  elements.playbackLabel.textContent = current.label;
-  elements.playIcon.setAttribute("d", current.playing ? pausePath : playPath);
-}
-
-function updateProgress({ current, total, ratio, activeNode }) {
-  const percent = Math.min(100, Math.round(ratio * 100));
-  elements.progressText.textContent = `${formatNumber(current)} / ${formatNumber(total)}`;
-  elements.progressPercent.textContent = `${percent}%`;
-  elements.progressFill.style.width = `${percent}%`;
-
-  if (current === 0) {
-    elements.displaySurface.scrollTop = 0;
-    return;
-  }
-
-  keepActiveTextVisible(activeNode);
-}
-
-function keepActiveTextVisible(activeNode) {
-  const anchorElement = activeNode?.nodeType === Node.ELEMENT_NODE
-    ? activeNode
-    : activeNode?.parentElement;
-  if (!anchorElement || !elements.displaySurface.contains(anchorElement)) return;
-
-  const surfaceRect = elements.displaySurface.getBoundingClientRect();
-  const anchorRect = anchorElement.getBoundingClientRect();
-  const upperBoundary = surfaceRect.top + Math.min(40, surfaceRect.height * 0.08);
-  const lowerBoundary = surfaceRect.bottom - Math.min(72, surfaceRect.height * 0.18);
-
-  if (anchorRect.bottom > lowerBoundary) {
-    elements.displaySurface.scrollTop += anchorRect.bottom - lowerBoundary;
-  } else if (anchorRect.top < upperBoundary) {
-    elements.displaySurface.scrollTop -= upperBoundary - anchorRect.top;
-  }
-}
-
-function togglePlayback() {
-  if (typewriter.state === "playing") typewriter.pause();
-  else if (typewriter.state === "completed") typewriter.restart();
-  else typewriter.start();
-}
-
-function updateSpeed() {
-  const value = Number(elements.speedRange.value);
-  const minimum = Number(elements.speedRange.min);
-  const maximum = Number(elements.speedRange.max);
-  const percent = ((value - minimum) / (maximum - minimum)) * 100;
-  elements.speedOutput.textContent = `${value} 毫秒 / 字`;
-  elements.speedRange.style.setProperty("--range-progress", `${percent}%`);
 }
 
 function updateCharacterCount() {
-  elements.characterCount.textContent = `${formatNumber(elements.textInput.value.length)} 字`;
+  elements.characterCount.textContent = `${new Intl.NumberFormat("zh-CN").format(elements.textInput.value.length)} 字`;
 }
 
 function setSaveState(message, kind = "saved") {
@@ -488,23 +368,8 @@ function showEditorMessage(message) {
   elements.editorMessage.textContent = message;
 }
 
-function setServerStatus(status, label) {
-  elements.serverStatusText.textContent = label;
-  elements.serverStatusDot.className = `server-dot${status === "online" ? " is-online" : status === "error" ? " is-error" : ""}`;
-}
-
 function canDiscardChanges() {
   return !state.dirty || window.confirm("当前文章有未保存的修改，确定放弃这些修改吗？");
-}
-
-function formatNumber(value) {
-  return new Intl.NumberFormat("zh-CN").format(value);
-}
-
-function escapeHtml(value) {
-  const span = document.createElement("span");
-  span.textContent = value;
-  return span.innerHTML;
 }
 
 elements.newDirectoryButton.addEventListener("click", openDirectoryDialog);
@@ -513,10 +378,6 @@ elements.directoryForm.addEventListener("submit", submitDirectory);
 elements.articleForm.addEventListener("submit", submitArticle);
 elements.saveButton.addEventListener("click", saveArticle);
 elements.deleteArticleButton.addEventListener("click", deleteArticle);
-elements.startButton.addEventListener("click", startFromEditor);
-elements.playbackButton.addEventListener("click", togglePlayback);
-elements.restartButton.addEventListener("click", () => typewriter.restart());
-elements.speedRange.addEventListener("input", updateSpeed);
 elements.textInput.addEventListener("input", markDirty);
 elements.articleTitle.addEventListener("input", markDirty);
 elements.articleDirectory.addEventListener("change", markDirty);
@@ -526,19 +387,9 @@ for (const button of document.querySelectorAll("[data-close-dialog]")) {
 }
 
 document.addEventListener("keydown", (event) => {
-  const isFormControl = event.target instanceof HTMLTextAreaElement
-    || event.target instanceof HTMLInputElement
-    || event.target instanceof HTMLSelectElement;
-
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
     event.preventDefault();
     saveArticle();
-    return;
-  }
-
-  if (event.code === "Space" && !isFormControl && typewriter.state !== "idle") {
-    event.preventDefault();
-    togglePlayback();
   }
 });
 
@@ -548,7 +399,5 @@ window.addEventListener("beforeunload", (event) => {
   event.returnValue = "";
 });
 
-updateSpeed();
 updateCharacterCount();
-updatePlaybackState("idle");
 initialize();

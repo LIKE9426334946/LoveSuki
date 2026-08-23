@@ -6,6 +6,8 @@ LoveSuki 是一个支持目录、Markdown 文章持久化保存和逐字阅读�
 
 - 创建、重命名和删除目录
 - 在任意目录下创建、编辑、移动和删除文章
+- `/` 为只读显示页面，仅提供文章选择和逐字播放
+- `/admin` 为管理页面，集中提供全部目录与文章编辑功能
 - Markdown 标题、加粗、斜体、列表、引用、链接、图片、代码块和表格渲染
 - Markdown 格式会在逐字出现过程中保持，不会显示原始标记符号
 - 保存状态提示、未保存离开提醒及 `Ctrl + S` 快捷保存
@@ -44,10 +46,12 @@ LoveSuki/
 │   └── static-handler.js
 ├── data/                   # 运行数据，不提交到 Git
 ├── public/
-│   ├── index.html
+│   ├── index.html             # 只读显示页面
+│   ├── admin.html             # 文章管理页面
 │   ├── styles/main.css
 │   └── scripts/
-│       ├── app.js
+│       ├── admin.js
+│       ├── viewer.js
 │       └── modules/
 ├── deploy/
 │   ├── LoveSuki.nginx

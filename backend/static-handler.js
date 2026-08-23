@@ -27,7 +27,11 @@ const securityHeaders = {
 
 function resolvePublicFile(url = "/") {
   const pathname = decodeURIComponent(new URL(url, "http://localhost").pathname);
-  const requestedPath = pathname === "/" ? "/index.html" : pathname;
+  const requestedPath = pathname === "/"
+    ? "/index.html"
+    : pathname === "/admin" || pathname === "/admin/"
+      ? "/admin.html"
+      : pathname;
   const absolutePath = path.resolve(publicDirectory, `.${requestedPath}`);
 
   if (absolutePath !== publicDirectory && !absolutePath.startsWith(`${publicDirectory}${path.sep}`)) {
