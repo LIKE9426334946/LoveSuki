@@ -25,6 +25,7 @@ test("serves a display-only home page and a separate admin route", async () => {
     const home = await homeResponse.text();
     assert.equal(homeResponse.status, 200);
     assert.match(home, /scripts\/viewer\.js/);
+    assert.match(home, /id="desktopPet"/);
     assert.doesNotMatch(home, /newDirectoryButton|textInput|saveButton/);
     assert.doesNotMatch(home, /把想说的话，慢慢写下来|已连接/);
 
@@ -34,5 +35,10 @@ test("serves a display-only home page and a separate admin route", async () => {
     assert.match(admin, /scripts\/admin\.js/);
     assert.match(admin, /newDirectoryButton/);
     assert.match(admin, /textInput/);
+    assert.doesNotMatch(admin, /id="desktopPet"/);
+
+    const petResponse = await fetch(`${baseUrl}/assets/pet-spritesheet.png`, { method: "HEAD" });
+    assert.equal(petResponse.status, 200);
+    assert.equal(petResponse.headers.get("content-type"), "image/png");
   });
 });

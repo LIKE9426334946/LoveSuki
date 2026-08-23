@@ -2,9 +2,9 @@ import { createFullscreenController } from "./modules/fullscreen.js";
 import { Typewriter } from "./modules/typewriter.js";
 
 const elements = Object.fromEntries([
-  "directoryList", "emptyState", "emptyStateHint", "emptyStateMessage", "fullscreenButton",
+  "desktopPet", "directoryList", "emptyState", "emptyStateHint", "emptyStateMessage", "fullscreenButton",
   "libraryEmpty", "libraryLoading", "playbackButton", "playbackLabel", "playIcon", "progressFill",
-  "progressPercent", "progressText", "renderedText", "restartButton", "speedOutput", "speedRange",
+  "progressPercent", "progressText", "petToggleButton", "renderedText", "restartButton", "speedOutput", "speedRange",
   "statusDot", "statusText", "viewerArticleTitle"
 ].map((id) => [id, document.querySelector(`#${id}`)]));
 
@@ -23,6 +23,10 @@ const playPath = "M8 5.7v12.6a1 1 0 0 0 1.53.85l9.4-6.3a1 1 0 0 0 0-1.7l-9.4-6.3
 const pausePath = "M7 5h3v14H7V5Zm7 0h3v14h-3V5Z";
 const folderPath = "M3 5.5A1.5 1.5 0 0 1 4.5 4h5l2 2h8A1.5 1.5 0 0 1 21 7.5v10a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5v-12Z";
 const chevronPath = "m9 5 7 7-7 7V5Z";
+const petStorageKey = "lovesuki.viewer.pet";
+let petPreferences = readPetPreferences();
+let petDrag = null;
+let petWaveTimer = null;
 
 const typewriter = new Typewriter({
   target: elements.renderedText,
@@ -228,6 +232,122 @@ function updateSpeed() {
   elements.speedRange.style.setProperty("--range-progress", `${percent}%`);
 }
 
+function readPetPreferences() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(petStorageKey) || "{}");
+    return saved && typeof saved === "object" ? saved : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePetPreferences() {
+  try {
+    localStorage.setItem(petStorageKey, JSON.stringify(petPreferences));
+  } catch {
+    // The pet still works when storage is disabled; only position memory is skipped.
+  }
+}
+
+function positionPet(left, top) {
+  const maximumLeft = Math.max(0, elements.displayPanel.clientWidth - elements.desktopPet.offsetWidth);
+  const maximumTop = Math.max(0, elements.displayPanel.clientHeight - elements.desktopPet.offsetHeight);
+  const nextLeft = Math.min(maximumLeft, Math.max(0, left));
+  const nextTop = Math.min(maximumTop, Math.max(0, top));
+  elements.desktopPet.style.left = `${nextLeft}px`;
+  elements.desktopPet.style.top = `${nextTop}px`;
+  elements.desktopPet.style.right = "auto";
+  elements.desktopPet.style.bottom = "auto";
+}
+
+function restorePetPosition() {
+  if (elements.desktopPet.hidden) return;
+  const maximumLeft = Math.max(0, elements.displayPanel.clientWidth - elements.desktopPet.offsetWidth);
+  const maximumTop = Math.max(0, elements.displayPanel.clientHeight - elements.desktopPet.offsetHeight);
+  const hasSavedPosition = Number.isFinite(petPreferences.x) && Number.isFinite(petPreferences.y);
+  const left = hasSavedPosition ? petPreferences.x * maximumLeft : maximumLeft - 26;
+  const top = hasSavedPosition ? petPreferences.y * maximumTop : maximumTop - 62;
+  positionPet(left, top);
+}
+
+function rememberPetPosition() {
+  const maximumLeft = Math.max(1, elements.displayPanel.clientWidth - elements.desktopPet.offsetWidth);
+  const maximumTop = Math.max(1, elements.displayPanel.clientHeight - elements.desktopPet.offsetHeight);
+  petPreferences.x = Math.min(1, Math.max(0, elements.desktopPet.offsetLeft / maximumLeft));
+  petPreferences.y = Math.min(1, Math.max(0, elements.desktopPet.offsetTop / maximumTop));
+  savePetPreferences();
+}
+
+function wavePet() {
+  clearTimeout(petWaveTimer);
+  elements.desktopPet.classList.remove("is-waving");
+  void elements.desktopPet.offsetWidth;
+  elements.desktopPet.classList.add("is-waving");
+  petWaveTimer = window.setTimeout(() => elements.desktopPet.classList.remove("is-waving"), 1100);
+}
+
+function setPetVisible(visible) {
+  elements.desktopPet.hidden = !visible;
+  elements.petToggleButton.classList.toggle("is-active", visible);
+  elements.petToggleButton.setAttribute("aria-pressed", String(visible));
+  elements.petToggleButton.title = visible ? "隐藏桌宠" : "显示桌宠";
+  petPreferences.hidden = !visible;
+  savePetPreferences();
+  if (visible) requestAnimationFrame(restorePetPosition);
+}
+
+function beginPetDrag(event) {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  petDrag = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    originLeft: elements.desktopPet.offsetLeft,
+    originTop: elements.desktopPet.offsetTop,
+    moved: false
+  };
+  elements.desktopPet.setPointerCapture(event.pointerId);
+  elements.desktopPet.classList.add("is-dragging");
+}
+
+function movePet(event) {
+  if (!petDrag || event.pointerId !== petDrag.pointerId) return;
+  const deltaX = event.clientX - petDrag.startX;
+  const deltaY = event.clientY - petDrag.startY;
+  if (Math.hypot(deltaX, deltaY) > 4) petDrag.moved = true;
+  positionPet(petDrag.originLeft + deltaX, petDrag.originTop + deltaY);
+}
+
+function endPetDrag(event) {
+  if (!petDrag || event.pointerId !== petDrag.pointerId) return;
+  const moved = petDrag.moved;
+  petDrag = null;
+  elements.desktopPet.classList.remove("is-dragging");
+  if (elements.desktopPet.hasPointerCapture(event.pointerId)) {
+    elements.desktopPet.releasePointerCapture(event.pointerId);
+  }
+  rememberPetPosition();
+  if (!moved) wavePet();
+}
+
+function initializePet() {
+  setPetVisible(!petPreferences.hidden);
+  elements.desktopPet.addEventListener("pointerdown", beginPetDrag);
+  elements.desktopPet.addEventListener("pointermove", movePet);
+  elements.desktopPet.addEventListener("pointerup", endPetDrag);
+  elements.desktopPet.addEventListener("pointercancel", endPetDrag);
+  elements.desktopPet.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.code !== "Space") return;
+    event.preventDefault();
+    event.stopPropagation();
+    wavePet();
+  });
+  elements.petToggleButton.addEventListener("click", () => setPetVisible(elements.desktopPet.hidden));
+  window.addEventListener("resize", () => requestAnimationFrame(restorePetPosition));
+  document.addEventListener("fullscreenchange", () => requestAnimationFrame(restorePetPosition));
+}
+
 elements.playbackButton.addEventListener("click", togglePlayback);
 elements.restartButton.addEventListener("click", () => typewriter.restart());
 elements.speedRange.addEventListener("input", updateSpeed);
@@ -242,4 +362,5 @@ document.addEventListener("keydown", (event) => {
 
 updateSpeed();
 updatePlaybackState("idle");
+initializePet();
 initialize();
