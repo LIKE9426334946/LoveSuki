@@ -1,11 +1,13 @@
 import { createFullscreenController } from "./modules/fullscreen.js";
 import { createDesktopPet } from "./modules/desktop-pet.js";
+import { handleUnauthorized, setupLogout } from "./modules/auth.js";
 import { Typewriter } from "./modules/typewriter.js";
 
 const elements = Object.fromEntries([
   "desktopPet", "directoryList", "emptyState", "emptyStateHint", "emptyStateMessage", "fullscreenButton",
   "libraryEmpty", "libraryLoading", "playbackButton", "playbackLabel", "playIcon", "progressFill",
   "progressPercent", "progressText", "petToggleButton", "renderedText", "restartButton", "speedOutput", "speedRange",
+  "logoutButton",
   "statusDot", "statusText", "viewerArticleTitle"
 ].map((id) => [id, document.querySelector(`#${id}`)]));
 
@@ -40,6 +42,7 @@ async function api(path, options = {}) {
 
   const response = await fetch(path, requestOptions);
   const data = await response.json().catch(() => ({}));
+  if (handleUnauthorized(response)) throw new Error("登录状态已失效。");
   if (!response.ok) throw new Error(data.error || `请求失败（${response.status}）`);
   return data;
 }
@@ -243,6 +246,7 @@ document.addEventListener("keydown", (event) => {
 
 updateSpeed();
 updatePlaybackState("idle");
+setupLogout(elements.logoutButton);
 createDesktopPet({
   element: elements.desktopPet,
   toggleButton: elements.petToggleButton,

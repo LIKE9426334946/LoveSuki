@@ -3,7 +3,7 @@ import { ApiError, readJsonBody, requireText, sendJson } from "../utils/http.js"
 
 const ARTICLE_CONTENT_LIMIT = 10_000_000;
 
-export function createApiRouter({ libraryStore }) {
+export function createApiRouter({ libraryStore, authService }) {
   return async function handleApiRequest(request, response) {
     const url = new URL(request.url, "http://localhost");
     if (!url.pathname.startsWith("/api/")) return false;
@@ -12,6 +12,10 @@ export function createApiRouter({ libraryStore }) {
       if (request.method === "GET" && url.pathname === "/api/health") {
         sendJson(response, 200, { status: "ok", service: "LoveSuki" });
         return true;
+      }
+
+      if (authService && !authService.isAuthenticated(request)) {
+        throw new ApiError(401, "登录状态已失效，请重新登录。");
       }
 
       if (request.method === "GET" && url.pathname === "/api/library") {

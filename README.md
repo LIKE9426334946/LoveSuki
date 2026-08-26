@@ -9,6 +9,8 @@ LoveSuki 是一个支持目录、Markdown 文章持久化保存和逐字阅读�
 - `/` 为只读显示页面，仅提供文章选择和逐字播放
 - 显示页面内置精灵图桌宠，支持 11 组共 73 帧动作、随机表演、点击轮换互动、左右跑动、拖动、隐藏和位置记忆
 - `/admin` 为管理页面，集中提供全部目录与文章编辑功能
+- 主显示页和管理页都必须登录，固定单账号登录状态保留 30 天
+- 无注册和用户创建入口，支持从两个页面安全退出登录
 - Markdown 标题、加粗、斜体、列表、引用、链接、图片、代码块和表格渲染
 - Markdown 格式会在逐字出现过程中保持，不会显示原始标记符号
 - 保存状态提示、未保存离开提醒及 `Ctrl + S` 快捷保存
@@ -24,6 +26,7 @@ LoveSuki 是一个支持目录、Markdown 文章持久化保存和逐字阅读�
 ```text
 data/
 ├── catalog.json           # 目录与文章标题、归属关系、时间等元数据
+├── .session-secret        # 自动生成的登录会话签名密钥
 └── articles/
     ├── <article-id>.md    # 每篇文章一个原始 Markdown 文件
     └── ...
@@ -39,7 +42,9 @@ data/
 LoveSuki/
 ├── backend/
 │   ├── api/router.js
+│   ├── auth-handler.js
 │   ├── services/
+│   │   ├── auth-service.js
 │   │   ├── library-store.js
 │   │   └── markdown-renderer.js
 │   ├── utils/http.js
@@ -49,6 +54,7 @@ LoveSuki/
 ├── public/
 │   ├── index.html             # 只读显示页面
 │   ├── admin.html             # 文章管理页面
+│   ├── login.html             # 固定账号登录页面
 │   ├── styles/main.css
 │   └── scripts/
 │       ├── admin.js
@@ -73,6 +79,10 @@ npm start
 ```
 
 默认只监听 `127.0.0.1:3023`，本机打开 `http://127.0.0.1:3023`。
+
+固定登录用户名为 `noart`，密码采用用户指定的固定值。仓库只保存密码的不可逆哈希，不会把密码明文写入前端、README 或运行日志。
+
+系统没有注册和创建其他账号的接口。登录会话有效期为 30 天，签名密钥保存在运行数据目录，重启服务和更新代码不会导致已登录设备退出。
 
 ## Ubuntu 服务器部署
 

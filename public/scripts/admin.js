@@ -1,10 +1,12 @@
+import { handleUnauthorized, setupLogout } from "./modules/auth.js";
+
 const elements = Object.fromEntries([
   "articleDialog", "articleDialogMessage", "articleDirectory", "articleForm", "articleTitle",
   "characterCount", "deleteArticleButton", "directoryDialog", "directoryDialogMessage",
   "directoryDialogMode", "directoryDialogTitle", "directoryForm", "directoryList", "directoryName",
   "editingDirectoryId", "editorContent", "editorEmpty", "editorMessage", "emptyNewDirectoryButton",
   "libraryEmpty", "libraryLoading", "newArticleDirectory", "newArticleTitle", "newDirectoryButton",
-  "saveButton", "saveState", "textInput"
+  "logoutButton", "saveButton", "saveState", "textInput"
 ].map((id) => [id, document.querySelector(`#${id}`)]));
 
 const state = {
@@ -28,6 +30,7 @@ async function api(path, options = {}) {
 
   const response = await fetch(path, requestOptions);
   const data = await response.json().catch(() => ({}));
+  if (handleUnauthorized(response)) throw new Error("登录状态已失效。");
   if (!response.ok) throw new Error(data.error || `请求失败（${response.status}）`);
   return data;
 }
@@ -400,4 +403,5 @@ window.addEventListener("beforeunload", (event) => {
 });
 
 updateCharacterCount();
+setupLogout(elements.logoutButton, { beforeLogout: canDiscardChanges });
 initialize();

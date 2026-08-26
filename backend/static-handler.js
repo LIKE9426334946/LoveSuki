@@ -31,6 +31,8 @@ function resolvePublicFile(url = "/") {
     ? "/index.html"
     : pathname === "/admin" || pathname === "/admin/"
       ? "/admin.html"
+      : pathname === "/login" || pathname === "/login/"
+        ? "/login.html"
       : pathname;
   const absolutePath = path.resolve(publicDirectory, `.${requestedPath}`);
 
@@ -41,6 +43,21 @@ function resolvePublicFile(url = "/") {
   return absolutePath;
 }
 
+const protectedPagePaths = new Set(["/", "/index.html", "/admin", "/admin/", "/admin.html"]);
+
+function getSafeNextPath(value) {
+  return value === "/admin" || value === "/admin/" || value === "/admin.html" ? "/admin" : "/";
+}
+
+function redirect(response, location) {
+  response.writeHead(302, {
+    ...securityHeaders,
+    "Cache-Control": "no-store",
+    Location: location
+  });
+  response.end();
+}
+
 function sendText(response, statusCode, message) {
   response.writeHead(statusCode, {
     ...securityHeaders,
@@ -49,7 +66,7 @@ function sendText(response, statusCode, message) {
   response.end(message);
 }
 
-export function createStaticHandler() {
+export function createStaticHandler({ isAuthenticated = () => true } = {}) {
   return async function handleStaticRequest(request, response) {
     if (request.method !== "GET" && request.method !== "HEAD") {
       response.setHeader("Allow", "GET, HEAD");
@@ -59,6 +76,17 @@ export function createStaticHandler() {
 
     let filePath;
     try {
+      const url = new URL(request.url, "http://localhost");
+      const authenticated = isAuthenticated(request);
+      if (protectedPagePaths.has(url.pathname) && !authenticated) {
+        const next = getSafeNextPath(url.pathname);
+        redirect(response, `/login?next=${encodeURIComponent(next)}`);
+        return;
+      }
+      if ((url.pathname === "/login" || url.pathname === "/login/") && authenticated) {
+        redirect(response, getSafeNextPath(url.searchParams.get("next")));
+        return;
+      }
       filePath = resolvePublicFile(request.url);
     } catch {
       sendText(response, 400, "Bad Request");

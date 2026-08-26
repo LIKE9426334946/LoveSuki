@@ -2,6 +2,8 @@ import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApiRouter } from "./api/router.js";
+import { createAuthHandler } from "./auth-handler.js";
+import { AuthService } from "./services/auth-service.js";
 import { LibraryStore } from "./services/library-store.js";
 import { createStaticHandler } from "./static-handler.js";
 
@@ -14,12 +16,18 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
   throw new Error("PORT must be an integer between 1 and 65535.");
 }
 
-const handleStaticRequest = createStaticHandler();
 const libraryStore = new LibraryStore(dataDirectory);
 await libraryStore.initialize();
-const handleApiRequest = createApiRouter({ libraryStore });
+const authService = new AuthService(dataDirectory);
+await authService.initialize();
+const handleAuthRequest = createAuthHandler({ authService });
+const handleApiRequest = createApiRouter({ libraryStore, authService });
+const handleStaticRequest = createStaticHandler({
+  isAuthenticated: (request) => authService.isAuthenticated(request)
+});
 
 const server = createServer(async (request, response) => {
+  if (await handleAuthRequest(request, response)) return;
   if (await handleApiRequest(request, response)) return;
 
   await handleStaticRequest(request, response);

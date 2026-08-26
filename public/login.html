@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="登录 LoveSuki。" />
+    <meta name="theme-color" content="#f8f1f3" />
+    <title>LoveSuki · 登录</title>
+    <link rel="stylesheet" href="/styles/main.css" />
+  </head>
+  <body class="login-page">
+    <div class="ambient ambient-one" aria-hidden="true"></div>
+    <div class="ambient ambient-two" aria-hidden="true"></div>
+
+    <main class="login-shell">
+      <section class="login-card" aria-labelledby="loginTitle">
+        <div class="login-brand" aria-hidden="true">
+          <span class="brand-mark">L</span>
+        </div>
+        <p class="eyebrow">私人文章空间</p>
+        <h1 id="loginTitle">登录 LoveSuki</h1>
+        <p class="login-intro">登录后才能进入显示页面和管理页面</p>
+
+        <form id="loginForm" class="login-form">
+          <label for="username">用户名</label>
+          <input id="username" name="username" type="text" value="noart" maxlength="80" autocomplete="username" required />
+
+          <label for="password">密码</label>
+          <input id="password" name="password" type="password" maxlength="256" autocomplete="current-password" required autofocus />
+
+          <p id="loginMessage" class="login-message" role="alert" aria-live="polite"></p>
+          <button id="loginButton" class="button button-primary login-button" type="submit">登录</button>
+        </form>
+
+        <div class="login-session-note">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7v3H3v10h18V12h-2V9a7 7 0 0 0-7-7Zm-5 7a5 5 0 0 1 10 0v3H7V9Zm-2 5h14v6H5v-6Zm7 1.5a1.5 1.5 0 0 0-1 2.6V19h2v-.9a1.5 1.5 0 0 0-1-2.6Z" /></svg>
+          <span>登录状态将在此设备保留 30 天</span>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/scripts/login.js"></script>
+  </body>
+</html>

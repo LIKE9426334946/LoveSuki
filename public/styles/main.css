@@ -115,6 +115,47 @@ button { -webkit-tap-highlight-color: transparent; }
 }
 .page-link:hover { transform: translateY(-1px); background: var(--rose-soft); }
 .page-link svg { width: 17px; height: 17px; fill: currentColor; }
+.topbar-actions { display: flex; align-items: center; gap: 8px; }
+.page-link-button { border: 0; cursor: pointer; }
+
+.login-page { overflow: auto; }
+.login-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 28px 18px;
+  display: grid;
+  place-items: center;
+}
+.login-card {
+  width: min(420px, 100%);
+  padding: 42px 42px 34px;
+  border: 1px solid rgba(255,255,255,.94);
+  border-radius: 27px;
+  background: rgba(255,253,253,.9);
+  box-shadow: 0 26px 80px rgba(76,44,54,.13);
+  backdrop-filter: blur(24px);
+}
+.login-brand { margin-bottom: 24px; }
+.login-card h1 { margin: 8px 0 8px; font-family: Georgia, "Times New Roman", serif; font-size: 1.85rem; }
+.login-intro { margin: 0 0 30px; color: var(--muted); font-size: .82rem; line-height: 1.7; }
+.login-form { display: grid; gap: 9px; }
+.login-form label { margin-top: 7px; color: var(--muted); font-size: .72rem; font-weight: 700; }
+.login-form input {
+  width: 100%;
+  height: 47px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  outline: none;
+  color: var(--ink);
+  background: rgba(255,255,255,.82);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.login-form input:focus { border-color: rgba(169,79,105,.42); box-shadow: 0 0 0 4px rgba(169,79,105,.08); }
+.login-message { min-height: 20px; margin: 3px 0 0; color: var(--danger); font-size: .72rem; }
+.login-button { width: 100%; margin-top: 2px; }
+.login-session-note { margin-top: 24px; display: flex; align-items: center; justify-content: center; gap: 7px; color: var(--subtle); font-size: .68rem; }
+.login-session-note svg { width: 15px; height: 15px; fill: currentColor; }
 
 .tagline, .footer-note, .global-status {
   color: var(--muted);
@@ -534,6 +575,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
   .compact-speed-setting { grid-template-columns: auto minmax(70px, 110px) 42px; }
   .page-link span { display: none; }
   .page-link { width: 38px; padding: 0; justify-content: center; }
+  .login-card { padding: 34px 25px 28px; }
   .desktop-pet { transform: scale(.84); transform-origin: top left; }
   .editor-actions { align-items: stretch; gap: 10px; }
   .editor-actions-main { flex: 1; }
