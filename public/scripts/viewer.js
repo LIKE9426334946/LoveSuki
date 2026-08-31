@@ -1,12 +1,11 @@
 import { createFullscreenController } from "./modules/fullscreen.js";
-import { createDesktopPet } from "./modules/desktop-pet.js";
 import { handleUnauthorized, setupLogout } from "./modules/auth.js";
 import { Typewriter } from "./modules/typewriter.js";
 
 const elements = Object.fromEntries([
-  "desktopPet", "directoryList", "emptyState", "emptyStateHint", "emptyStateMessage", "fullscreenButton",
+  "directoryList", "emptyState", "emptyStateHint", "emptyStateMessage", "fullscreenButton",
   "libraryEmpty", "libraryLoading", "playbackButton", "playbackLabel", "playIcon", "progressFill",
-  "progressPercent", "progressText", "petToggleButton", "renderedText", "restartButton", "speedOutput", "speedRange",
+  "progressPercent", "progressText", "renderedText", "restartButton", "speedOutput", "speedRange",
   "libraryBackdrop", "logoutButton", "mobileLibraryButton", "mobileLibraryCloseButton", "viewerLibraryPanel",
   "statusDot", "statusText", "viewerArticleTitle"
 ].map((id) => [id, document.querySelector(`#${id}`)]));
@@ -201,6 +200,7 @@ function updatePlaybackState(playbackState) {
     completed: { label: "再看一次", status: "显示完成", playing: false, disabled: false }
   };
   const current = states[playbackState];
+  elements.displaySurface.dataset.playbackState = playbackState;
   elements.statusText.textContent = current.status;
   elements.statusDot.classList.toggle("is-playing", current.playing);
   elements.playbackButton.disabled = current.disabled;
@@ -279,9 +279,4 @@ updateSpeed();
 updatePlaybackState("idle");
 setLibraryOpen(false);
 setupLogout(elements.logoutButton);
-createDesktopPet({
-  element: elements.desktopPet,
-  toggleButton: elements.petToggleButton,
-  boundary: elements.displayPanel
-});
 initialize();

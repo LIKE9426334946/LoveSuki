@@ -25,7 +25,7 @@ test("serves a display-only home page and a separate admin route", async () => {
     const home = await homeResponse.text();
     assert.equal(homeResponse.status, 200);
     assert.match(home, /scripts\/viewer\.js/);
-    assert.match(home, /id="desktopPet"/);
+    assert.doesNotMatch(home, /desktopPet|petToggleButton|desktop-pet/);
     assert.match(home, /viewport-fit=cover/);
     assert.match(home, /id="mobileLibraryButton"/);
     assert.match(home, /id="libraryBackdrop"/);
@@ -40,26 +40,20 @@ test("serves a display-only home page and a separate admin route", async () => {
     assert.match(admin, /textInput/);
     assert.doesNotMatch(admin, /id="desktopPet"/);
 
-    const petResponse = await fetch(`${baseUrl}/assets/pet-spritesheet.png`, { method: "HEAD" });
-    assert.equal(petResponse.status, 200);
-    assert.equal(petResponse.headers.get("content-type"), "image/png");
-
-    const petModuleResponse = await fetch(`${baseUrl}/scripts/modules/desktop-pet.js`);
-    const petModule = await petModuleResponse.text();
-    assert.equal(petModuleResponse.status, 200);
-    assert.match(petModule, /runRight|turnLeft|PET_AMBIENT_ACTIONS/);
-
     const stylesResponse = await fetch(`${baseUrl}/styles/main.css`);
     const styles = await stylesResponse.text();
     assert.equal(stylesResponse.status, 200);
     assert.match(styles, /\.viewer-page\.library-open \.viewer-library-panel/);
     assert.match(styles, /env\(safe-area-inset-bottom\)/);
     assert.match(styles, /\.display-panel\.is-focus-mode/);
+    assert.match(styles, /data-playback-state="ready"/);
+    assert.doesNotMatch(styles, /desktop-pet|pet-spritesheet/);
 
     const viewerModuleResponse = await fetch(`${baseUrl}/scripts/viewer.js`);
     const viewerModule = await viewerModuleResponse.text();
     assert.equal(viewerModuleResponse.status, 200);
     assert.match(viewerModule, /setLibraryOpen/);
     assert.match(viewerModule, /matchMedia\("\(max-width: 720px\)"\)/);
+    assert.doesNotMatch(viewerModule, /createDesktopPet|petToggleButton/);
   });
 });
