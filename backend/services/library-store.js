@@ -69,6 +69,62 @@ export class LibraryStore {
     return { ...clone(article), content };
   }
 
+  getArticleBySourceKey(sourceKey) {
+    this.assertInitialized();
+    const article = this.catalog.articles.find((item) => item.sourceKey === sourceKey);
+    return article ? clone(article) : null;
+  }
+
+  upsertImportedArticle({ directoryName, title, content, sourceKey, sourceRevision }) {
+    return this.mutate(async () => {
+      const nextCatalog = clone(this.catalog);
+      let directory = nextCatalog.directories.find((item) => item.name === directoryName);
+
+      if (!directory) {
+        const timestamp = now();
+        directory = {
+          id: randomUUID(),
+          name: directoryName,
+          createdAt: timestamp,
+          updatedAt: timestamp
+        };
+        nextCatalog.directories.unshift(directory);
+      }
+
+      const timestamp = now();
+      let article = nextCatalog.articles.find((item) => item.sourceKey === sourceKey);
+      const isNew = !article;
+
+      if (isNew) {
+        article = {
+          id: randomUUID(),
+          directoryId: directory.id,
+          title,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          sourceKey,
+          sourceRevision
+        };
+        nextCatalog.articles.push(article);
+      } else {
+        article.title = title;
+        article.updatedAt = timestamp;
+        article.sourceRevision = sourceRevision;
+      }
+
+      await this.writeArticle(article.id, content);
+      try {
+        await this.writeCatalog(nextCatalog);
+      } catch (error) {
+        if (isNew) await rm(this.articlePath(article.id), { force: true });
+        throw error;
+      }
+
+      this.catalog = nextCatalog;
+      return { ...clone(article), content, imported: isNew };
+    });
+  }
+
   createDirectory(name) {
     return this.mutate(async () => {
       const timestamp = now();

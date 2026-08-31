@@ -3,7 +3,7 @@ import { ApiError, readJsonBody, requireText, sendJson } from "../utils/http.js"
 
 const ARTICLE_CONTENT_LIMIT = 10_000_000;
 
-export function createApiRouter({ libraryStore, authService }) {
+export function createApiRouter({ libraryStore, authService, articleSync }) {
   return async function handleApiRequest(request, response) {
     const url = new URL(request.url, "http://localhost");
     if (!url.pathname.startsWith("/api/")) return false;
@@ -19,6 +19,11 @@ export function createApiRouter({ libraryStore, authService }) {
       }
 
       if (request.method === "GET" && url.pathname === "/api/library") {
+        try {
+          await articleSync?.sync();
+        } catch (error) {
+          console.warn(`Daily article sync failed: ${error.message}`);
+        }
         sendJson(response, 200, libraryStore.listLibrary());
         return true;
       }

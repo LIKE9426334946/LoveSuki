@@ -20,6 +20,7 @@ LoveSuki 是一个支持目录、Markdown 文章持久化保存和逐字阅读�
 - 中文、Emoji 和组合字符按完整字素显示
 - 文章按需读取，超长文章不会在目录加载时进入浏览器内存
 - 电脑端保留宽屏布局，显示页、管理页和登录页均适配手机触控操作
+- 自动读取仓库 `daily-articles/YYYY-MM-DD.md`，并把每天生成的英文文章导入“默认目录”
 
 ## 数据存储方案
 
@@ -53,6 +54,7 @@ LoveSuki/
 │   ├── server.js
 │   └── static-handler.js
 ├── data/                   # 运行数据，不提交到 Git
+├── daily-articles/         # 自动生成的每日英文文章，使用 YYYY-MM-DD.md 命名
 ├── public/
 │   ├── index.html             # 只读显示页面
 │   ├── admin.html             # 文章管理页面
@@ -150,3 +152,9 @@ systemctl status LoveSuki
 ```bash
 cp -a /opt/LoveSuki/data /opt/LoveSuki-data-backup
 ```
+
+## 每日英文文章同步
+
+每天生成的文章提交到 `main` 分支的 `daily-articles/YYYY-MM-DD.md`。LoveSuki 在读取文章库时每两分钟最多检查一次 GitHub；发现新文件后，会把它导入本地“默认目录”。文章侧栏标题使用日期，Markdown 正文仍保留文章标题、词汇、语法讲解和问题等完整内容。
+
+文章导入后仍是普通的本地文章，可以在管理页中编辑或移动。若 GitHub 中同一天的文件内容后来发生变化，下一次同步会用新版本更新正文。

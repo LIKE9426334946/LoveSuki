@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { createApiRouter } from "./api/router.js";
 import { createAuthHandler } from "./auth-handler.js";
 import { AuthService } from "./services/auth-service.js";
+import { GitHubArticleSync } from "./services/github-article-sync.js";
 import { LibraryStore } from "./services/library-store.js";
 import { createStaticHandler } from "./static-handler.js";
 
@@ -20,8 +21,9 @@ const libraryStore = new LibraryStore(dataDirectory);
 await libraryStore.initialize();
 const authService = new AuthService(dataDirectory);
 await authService.initialize();
+const articleSync = new GitHubArticleSync({ libraryStore });
 const handleAuthRequest = createAuthHandler({ authService });
-const handleApiRequest = createApiRouter({ libraryStore, authService });
+const handleApiRequest = createApiRouter({ libraryStore, authService, articleSync });
 const handleStaticRequest = createStaticHandler({
   isAuthenticated: (request) => authService.isAuthenticated(request)
 });
