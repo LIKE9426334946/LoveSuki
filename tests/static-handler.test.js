@@ -26,6 +26,9 @@ test("serves a display-only home page and a separate admin route", async () => {
     assert.equal(homeResponse.status, 200);
     assert.match(home, /scripts\/viewer\.js/);
     assert.match(home, /id="desktopPet"/);
+    assert.match(home, /viewport-fit=cover/);
+    assert.match(home, /id="mobileLibraryButton"/);
+    assert.match(home, /id="libraryBackdrop"/);
     assert.doesNotMatch(home, /newDirectoryButton|textInput|saveButton/);
     assert.doesNotMatch(home, /把想说的话，慢慢写下来|已连接/);
 
@@ -45,5 +48,18 @@ test("serves a display-only home page and a separate admin route", async () => {
     const petModule = await petModuleResponse.text();
     assert.equal(petModuleResponse.status, 200);
     assert.match(petModule, /runRight|turnLeft|PET_AMBIENT_ACTIONS/);
+
+    const stylesResponse = await fetch(`${baseUrl}/styles/main.css`);
+    const styles = await stylesResponse.text();
+    assert.equal(stylesResponse.status, 200);
+    assert.match(styles, /\.viewer-page\.library-open \.viewer-library-panel/);
+    assert.match(styles, /env\(safe-area-inset-bottom\)/);
+    assert.match(styles, /\.display-panel\.is-focus-mode/);
+
+    const viewerModuleResponse = await fetch(`${baseUrl}/scripts/viewer.js`);
+    const viewerModule = await viewerModuleResponse.text();
+    assert.equal(viewerModuleResponse.status, 200);
+    assert.match(viewerModule, /setLibraryOpen/);
+    assert.match(viewerModule, /matchMedia\("\(max-width: 720px\)"\)/);
   });
 });

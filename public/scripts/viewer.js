@@ -7,7 +7,7 @@ const elements = Object.fromEntries([
   "desktopPet", "directoryList", "emptyState", "emptyStateHint", "emptyStateMessage", "fullscreenButton",
   "libraryEmpty", "libraryLoading", "playbackButton", "playbackLabel", "playIcon", "progressFill",
   "progressPercent", "progressText", "petToggleButton", "renderedText", "restartButton", "speedOutput", "speedRange",
-  "logoutButton",
+  "libraryBackdrop", "logoutButton", "mobileLibraryButton", "mobileLibraryCloseButton", "viewerLibraryPanel",
   "statusDot", "statusText", "viewerArticleTitle"
 ].map((id) => [id, document.querySelector(`#${id}`)]));
 
@@ -35,6 +35,24 @@ const typewriter = new Typewriter({
 });
 
 createFullscreenController({ element: elements.displayPanel, button: elements.fullscreenButton });
+
+const mobileViewport = window.matchMedia("(max-width: 720px)");
+
+function setLibraryOpen(open, { restoreFocus = false } = {}) {
+  const isMobile = mobileViewport.matches;
+  const shouldOpen = Boolean(open && isMobile);
+  document.body.classList.toggle("library-open", shouldOpen);
+  elements.mobileLibraryButton.setAttribute("aria-expanded", String(shouldOpen));
+  elements.viewerLibraryPanel.inert = Boolean(isMobile && !shouldOpen);
+  if (isMobile) elements.viewerLibraryPanel.setAttribute("aria-hidden", String(!shouldOpen));
+  else elements.viewerLibraryPanel.removeAttribute("aria-hidden");
+
+  if (shouldOpen) {
+    requestAnimationFrame(() => elements.mobileLibraryCloseButton.focus());
+  } else if (restoreFocus && isMobile) {
+    elements.mobileLibraryButton.focus();
+  }
+}
 
 async function api(path, options = {}) {
   const requestOptions = { ...options, headers: { ...(options.headers || {}) } };
@@ -109,7 +127,10 @@ function renderLibrary() {
         button.className = `article-button${state.currentArticleId === article.id ? " is-active" : ""}`;
         button.innerHTML = '<span class="article-dot" aria-hidden="true"></span><span class="article-title-text"></span>';
         button.querySelector(".article-title-text").textContent = article.title;
-        button.addEventListener("click", () => selectArticle(article.id));
+        button.addEventListener("click", () => {
+          setLibraryOpen(false, { restoreFocus: true });
+          selectArticle(article.id);
+        });
 
         const row = document.createElement("div");
         row.className = "article-item";
@@ -235,8 +256,18 @@ function updateSpeed() {
 elements.playbackButton.addEventListener("click", togglePlayback);
 elements.restartButton.addEventListener("click", () => typewriter.restart());
 elements.speedRange.addEventListener("input", updateSpeed);
+elements.mobileLibraryButton.addEventListener("click", () => setLibraryOpen(true));
+elements.mobileLibraryCloseButton.addEventListener("click", () => setLibraryOpen(false, { restoreFocus: true }));
+elements.libraryBackdrop.addEventListener("click", () => setLibraryOpen(false, { restoreFocus: true }));
+const handleViewportModeChange = () => setLibraryOpen(false);
+if (typeof mobileViewport.addEventListener === "function") mobileViewport.addEventListener("change", handleViewportModeChange);
+else mobileViewport.addListener?.(handleViewportModeChange);
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && document.body.classList.contains("library-open")) {
+    setLibraryOpen(false, { restoreFocus: true });
+    return;
+  }
   const isFormControl = event.target instanceof HTMLInputElement;
   if (event.code === "Space" && !isFormControl && typewriter.state !== "idle") {
     event.preventDefault();
@@ -246,6 +277,7 @@ document.addEventListener("keydown", (event) => {
 
 updateSpeed();
 updatePlaybackState("idle");
+setLibraryOpen(false);
 setupLogout(elements.logoutButton);
 createDesktopPet({
   element: elements.desktopPet,
