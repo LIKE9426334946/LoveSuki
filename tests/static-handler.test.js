@@ -47,6 +47,7 @@ test("serves a display-only home page and a separate admin route", async () => {
     assert.match(styles, /env\(safe-area-inset-bottom\)/);
     assert.match(styles, /\.display-panel\.is-focus-mode/);
     assert.match(styles, /data-playback-state="ready"/);
+    assert.match(styles, /\.viewer-page \.topbar \{ display: none; \}/);
     assert.doesNotMatch(styles, /desktop-pet|pet-spritesheet/);
 
     const viewerModuleResponse = await fetch(`${baseUrl}/scripts/viewer.js`);

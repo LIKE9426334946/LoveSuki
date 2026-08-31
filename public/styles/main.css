@@ -566,10 +566,11 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
     gap: 8px;
   }
   .viewer-page .app-shell {
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
     padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
-    gap: 10px;
+    gap: 0;
   }
+  .viewer-page .topbar { display: none; }
   .tagline, .viewer-footer, .admin-footer { display: none; }
   .topbar { min-height: 46px; padding-inline: 4px; }
   .brand { gap: 9px; font-size: 1.06rem; }
