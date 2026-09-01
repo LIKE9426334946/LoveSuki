@@ -29,6 +29,7 @@ test("serves a display-only home page and a separate admin route", async () => {
     assert.match(home, /viewport-fit=cover/);
     assert.match(home, /id="mobileLibraryButton"/);
     assert.match(home, /id="libraryBackdrop"/);
+    assert.match(home, /id="articleAudioPanel"/);
     assert.doesNotMatch(home, /newDirectoryButton|textInput|saveButton/);
     assert.doesNotMatch(home, /把想说的话，慢慢写下来|已连接/);
 
@@ -38,6 +39,7 @@ test("serves a display-only home page and a separate admin route", async () => {
     assert.match(admin, /scripts\/admin\.js/);
     assert.match(admin, /newDirectoryButton/);
     assert.match(admin, /textInput/);
+    assert.match(admin, /id="audioFileInput"/);
     assert.doesNotMatch(admin, /id="desktopPet"/);
 
     const stylesResponse = await fetch(`${baseUrl}/styles/main.css`);

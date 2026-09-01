@@ -78,6 +78,20 @@
                 <input id="speedRange" type="range" min="10" max="500" value="50" step="10" />
                 <output id="speedOutput" for="speedRange">50 ms</output>
               </div>
+              <section id="articleAudioPanel" class="article-audio-player" aria-label="当前文章音频" hidden>
+                <button id="audioPlaybackButton" class="audio-playback-button" type="button" aria-label="播放文章音频">
+                  <svg aria-hidden="true" viewBox="0 0 24 24"><path id="audioPlayIcon" d="M8 5.7v12.6a1 1 0 0 0 1.53.85l9.4-6.3a1 1 0 0 0 0-1.7l-9.4-6.3A1 1 0 0 0 8 5.7Z" /></svg>
+                </button>
+                <div class="audio-player-main">
+                  <div class="audio-player-copy">
+                    <strong id="audioTitle">文章音频</strong>
+                    <output id="audioTime">0:00 / 0:00</output>
+                  </div>
+                  <label class="sr-only" for="audioProgress">音频播放进度</label>
+                  <input id="audioProgress" class="audio-progress" type="range" min="0" max="1000" value="0" step="1" />
+                </div>
+                <audio id="articleAudio" preload="metadata"></audio>
+              </section>
               <div class="toolbar-actions">
                 <button id="mobileLibraryButton" class="icon-button mobile-library-button" type="button" title="文章列表" aria-label="打开文章列表" aria-controls="viewerLibraryPanel" aria-expanded="false">
                   <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4h6.5A2.5 2.5 0 0 1 13 6.5V20a3.5 3.5 0 0 0-3-1.5H4V4Zm16 0h-6.5A2.5 2.5 0 0 0 11 6.5V20a3.5 3.5 0 0 1 3-1.5h6V4Z" /></svg>

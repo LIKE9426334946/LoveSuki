@@ -87,6 +87,45 @@ test("requires login for both pages and all article APIs", async () => {
 
     const library = await fetch(`${baseUrl}/api/library`, { headers: { Cookie: cookie } });
     assert.equal(library.status, 200);
+    const libraryData = await library.json();
+
+    const createArticle = await fetch(`${baseUrl}/api/articles`, {
+      method: "POST",
+      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        directoryId: libraryData.directories[0].id,
+        title: "Audio test",
+        content: "Audio article"
+      })
+    });
+    assert.equal(createArticle.status, 201);
+    const { article } = await createArticle.json();
+    const audioPayload = Buffer.from("test-audio-payload");
+    const uploadAudio = await fetch(`${baseUrl}/api/articles/${article.id}/audio`, {
+      method: "PUT",
+      headers: {
+        Cookie: cookie,
+        "Content-Type": "audio/mpeg",
+        "X-Audio-File-Name": encodeURIComponent("lesson.mp3")
+      },
+      body: audioPayload
+    });
+    assert.equal(uploadAudio.status, 201);
+    assert.equal((await uploadAudio.json()).audio.originalName, "lesson.mp3");
+
+    const streamAudio = await fetch(`${baseUrl}/api/articles/${article.id}/audio`, {
+      headers: { Cookie: cookie, Range: "bytes=5-9" }
+    });
+    assert.equal(streamAudio.status, 206);
+    assert.equal(streamAudio.headers.get("accept-ranges"), "bytes");
+    assert.equal(streamAudio.headers.get("content-range"), `bytes 5-9/${audioPayload.length}`);
+    assert.deepEqual(Buffer.from(await streamAudio.arrayBuffer()), audioPayload.subarray(5, 10));
+
+    const deleteAudio = await fetch(`${baseUrl}/api/articles/${article.id}/audio`, {
+      method: "DELETE",
+      headers: { Cookie: cookie }
+    });
+    assert.equal(deleteAudio.status, 200);
 
     const session = await fetch(`${baseUrl}/api/auth/session`, { headers: { Cookie: cookie } });
     const sessionData = await session.json();

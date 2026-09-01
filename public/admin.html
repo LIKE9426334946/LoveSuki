@@ -88,6 +88,21 @@
               <code># 标题</code><code>**加粗**</code><code>- 列表</code><code>&gt; 引用</code><code>`代码`</code>
             </div>
 
+            <section class="article-audio-manager" aria-label="文章音频管理">
+              <div class="audio-manager-heading">
+                <div>
+                  <strong>文章音频</strong>
+                  <span id="adminAudioState">未上传音频</span>
+                </div>
+                <div class="audio-manager-actions">
+                  <input id="audioFileInput" type="file" accept="audio/mpeg,audio/mp4,audio/m4a,audio/aac,audio/wav,audio/ogg,audio/webm,.mp3,.m4a,.aac,.wav,.ogg,.webm" hidden />
+                  <button id="selectAudioButton" class="button button-secondary" type="button">上传音频</button>
+                  <button id="deleteAudioButton" class="button button-danger-quiet" type="button" hidden>删除音频</button>
+                </div>
+              </div>
+              <audio id="adminAudioPreview" class="admin-audio-preview" controls preload="metadata" hidden></audio>
+            </section>
+
             <div class="editor-actions">
               <button id="deleteArticleButton" class="button button-danger-quiet" type="button">删除文章</button>
               <button id="saveButton" class="button button-primary" type="button">保存文章</button>

@@ -1,7 +1,60 @@
+import { createReadStream } from "node:fs";
 import { renderMarkdown } from "../services/markdown-renderer.js";
 import { ApiError, readJsonBody, requireText, sendJson } from "../utils/http.js";
 
 const ARTICLE_CONTENT_LIMIT = 10_000_000;
+
+function parseRange(rangeHeader, size) {
+  if (!rangeHeader) return null;
+  const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
+  if (!match || (!match[1] && !match[2])) return { invalid: true };
+
+  let start;
+  let end;
+  if (!match[1]) {
+    const suffixLength = Number(match[2]);
+    if (!Number.isInteger(suffixLength) || suffixLength <= 0) return { invalid: true };
+    start = Math.max(0, size - suffixLength);
+    end = size - 1;
+  } else {
+    start = Number(match[1]);
+    end = match[2] ? Number(match[2]) : size - 1;
+  }
+
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || start >= size || end < start) {
+    return { invalid: true };
+  }
+  return { start, end: Math.min(end, size - 1) };
+}
+
+function sendAudio(request, response, audio) {
+  const range = parseRange(request.headers.range, audio.size);
+  if (range?.invalid) {
+    response.writeHead(416, {
+      "Accept-Ranges": "bytes",
+      "Content-Range": `bytes */${audio.size}`,
+      "X-Content-Type-Options": "nosniff"
+    });
+    response.end();
+    return;
+  }
+
+  const start = range?.start ?? 0;
+  const end = range?.end ?? audio.size - 1;
+  const headers = {
+    "Accept-Ranges": "bytes",
+    "Cache-Control": "private, no-cache",
+    "Content-Length": end - start + 1,
+    "Content-Type": audio.contentType,
+    "X-Content-Type-Options": "nosniff"
+  };
+  if (range) headers["Content-Range"] = `bytes ${start}-${end}/${audio.size}`;
+  response.writeHead(range ? 206 : 200, headers);
+
+  const stream = createReadStream(audio.filePath, { start, end });
+  stream.on("error", () => response.destroy());
+  stream.pipe(response);
+}
 
 export function createApiRouter({ libraryStore, authService, articleSync }) {
   return async function handleApiRequest(request, response) {
@@ -62,6 +115,36 @@ export function createApiRouter({ libraryStore, authService, articleSync }) {
           content: requireText(body.content ?? "", "文章内容", ARTICLE_CONTENT_LIMIT, { allowEmpty: true })
         });
         sendJson(response, 201, { article });
+        return true;
+      }
+
+      const articleAudioMatch = url.pathname.match(/^\/api\/articles\/([^/]+)\/audio$/);
+      if (articleAudioMatch && request.method === "GET") {
+        const audio = await libraryStore.getArticleAudio(decodeURIComponent(articleAudioMatch[1]));
+        sendAudio(request, response, audio);
+        return true;
+      }
+
+      if (articleAudioMatch && request.method === "PUT") {
+        let originalName;
+        try {
+          originalName = decodeURIComponent(String(request.headers["x-audio-file-name"] || "文章音频"));
+        } catch {
+          throw new ApiError(400, "音频文件名格式不正确。");
+        }
+        const audio = await libraryStore.saveArticleAudio(decodeURIComponent(articleAudioMatch[1]), {
+          stream: request,
+          contentType: request.headers["content-type"],
+          originalName,
+          declaredBytes: Number(request.headers["content-length"] || 0)
+        });
+        sendJson(response, 201, { audio });
+        return true;
+      }
+
+      if (articleAudioMatch && request.method === "DELETE") {
+        const result = await libraryStore.deleteArticleAudio(decodeURIComponent(articleAudioMatch[1]));
+        sendJson(response, 200, result);
         return true;
       }
 

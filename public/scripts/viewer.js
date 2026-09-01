@@ -3,6 +3,7 @@ import { handleUnauthorized, setupLogout } from "./modules/auth.js";
 import { Typewriter } from "./modules/typewriter.js";
 
 const elements = Object.fromEntries([
+  "articleAudio", "articleAudioPanel", "audioPlaybackButton", "audioPlayIcon", "audioProgress", "audioTime", "audioTitle",
   "directoryList", "emptyState", "emptyStateHint", "emptyStateMessage", "fullscreenButton",
   "libraryEmpty", "libraryLoading", "playbackButton", "playbackLabel", "playIcon", "progressFill",
   "progressPercent", "progressText", "renderedText", "restartButton", "speedOutput", "speedRange",
@@ -147,6 +148,7 @@ async function selectArticle(articleId) {
   if (state.currentArticleId === articleId) return;
   const requestId = ++state.articleRequest;
   state.currentArticleId = articleId;
+  configureArticleAudio(null);
   renderLibrary();
   showEmptyState("正在读取文章", "Markdown 内容加载中");
   elements.viewerArticleTitle.textContent = "正在读取…";
@@ -159,6 +161,7 @@ async function selectArticle(articleId) {
     state.selectedDirectoryId = article.directoryId;
     state.openDirectoryIds.add(article.directoryId);
     elements.viewerArticleTitle.textContent = article.title;
+    configureArticleAudio(article);
     renderLibrary();
 
     if (!article.content.trim()) {
@@ -180,6 +183,61 @@ async function selectArticle(articleId) {
     if (requestId !== state.articleRequest) return;
     showEmptyState("文章读取失败", error.message);
     elements.statusText.textContent = "读取失败";
+  }
+}
+
+function formatAudioTime(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const wholeSeconds = Math.floor(seconds);
+  const minutes = Math.floor(wholeSeconds / 60);
+  return `${minutes}:${String(wholeSeconds % 60).padStart(2, "0")}`;
+}
+
+function configureArticleAudio(article) {
+  elements.articleAudio.pause();
+  elements.articleAudioPanel.hidden = !article?.audio;
+  elements.audioProgress.value = "0";
+  elements.audioProgress.style.setProperty("--range-progress", "0%");
+  elements.audioTime.textContent = "0:00 / 0:00";
+  elements.audioPlayIcon.setAttribute("d", playPath);
+  elements.audioPlaybackButton.setAttribute("aria-label", "播放文章音频");
+
+  if (!article?.audio) {
+    elements.articleAudio.removeAttribute("src");
+    elements.articleAudio.load();
+    return;
+  }
+
+  elements.audioTitle.textContent = article.audio.originalName || "文章音频";
+  elements.articleAudio.src = `/api/articles/${encodeURIComponent(article.id)}/audio?v=${encodeURIComponent(article.audio.updatedAt)}`;
+  elements.articleAudio.load();
+}
+
+function updateAudioProgress() {
+  const duration = elements.articleAudio.duration;
+  const currentTime = elements.articleAudio.currentTime;
+  const ratio = Number.isFinite(duration) && duration > 0 ? currentTime / duration : 0;
+  const progress = Math.min(1000, Math.round(ratio * 1000));
+  elements.audioProgress.value = String(progress);
+  elements.audioProgress.style.setProperty("--range-progress", `${ratio * 100}%`);
+  elements.audioTime.textContent = `${formatAudioTime(currentTime)} / ${formatAudioTime(duration)}`;
+}
+
+function updateAudioPlaybackButton() {
+  const playing = !elements.articleAudio.paused && !elements.articleAudio.ended;
+  elements.audioPlayIcon.setAttribute("d", playing ? pausePath : playPath);
+  elements.audioPlaybackButton.setAttribute("aria-label", playing ? "暂停文章音频" : "播放文章音频");
+}
+
+async function toggleArticleAudio() {
+  if (elements.articleAudio.paused || elements.articleAudio.ended) {
+    try {
+      await elements.articleAudio.play();
+    } catch {
+      elements.audioTitle.textContent = "音频无法播放";
+    }
+  } else {
+    elements.articleAudio.pause();
   }
 }
 
@@ -254,6 +312,23 @@ function updateSpeed() {
 }
 
 elements.playbackButton.addEventListener("click", togglePlayback);
+elements.audioPlaybackButton.addEventListener("click", toggleArticleAudio);
+elements.audioProgress.addEventListener("input", () => {
+  const duration = elements.articleAudio.duration;
+  if (Number.isFinite(duration) && duration > 0) {
+    elements.articleAudio.currentTime = (Number(elements.audioProgress.value) / 1000) * duration;
+    updateAudioProgress();
+  }
+});
+elements.articleAudio.addEventListener("loadedmetadata", updateAudioProgress);
+elements.articleAudio.addEventListener("durationchange", updateAudioProgress);
+elements.articleAudio.addEventListener("timeupdate", updateAudioProgress);
+elements.articleAudio.addEventListener("play", updateAudioPlaybackButton);
+elements.articleAudio.addEventListener("pause", updateAudioPlaybackButton);
+elements.articleAudio.addEventListener("ended", updateAudioPlaybackButton);
+elements.articleAudio.addEventListener("error", () => {
+  if (elements.articleAudio.getAttribute("src")) elements.audioTitle.textContent = "音频加载失败";
+});
 elements.restartButton.addEventListener("click", () => typewriter.restart());
 elements.speedRange.addEventListener("input", updateSpeed);
 elements.mobileLibraryButton.addEventListener("click", () => setLibraryOpen(true));
@@ -268,8 +343,8 @@ document.addEventListener("keydown", (event) => {
     setLibraryOpen(false, { restoreFocus: true });
     return;
   }
-  const isFormControl = event.target instanceof HTMLInputElement;
-  if (event.code === "Space" && !isFormControl && typewriter.state !== "idle") {
+  const isInteractive = event.target.closest?.("button, input, select, textarea, a, audio");
+  if (event.code === "Space" && !isInteractive && typewriter.state !== "idle") {
     event.preventDefault();
     togglePlayback();
   }

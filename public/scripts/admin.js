@@ -1,12 +1,12 @@
 import { handleUnauthorized, setupLogout } from "./modules/auth.js";
 
 const elements = Object.fromEntries([
-  "articleDialog", "articleDialogMessage", "articleDirectory", "articleForm", "articleTitle",
-  "characterCount", "deleteArticleButton", "directoryDialog", "directoryDialogMessage",
+  "adminAudioPreview", "adminAudioState", "articleDialog", "articleDialogMessage", "articleDirectory",
+  "articleForm", "articleTitle", "audioFileInput", "characterCount", "deleteArticleButton", "deleteAudioButton", "directoryDialog", "directoryDialogMessage",
   "directoryDialogMode", "directoryDialogTitle", "directoryForm", "directoryList", "directoryName",
   "editingDirectoryId", "editorContent", "editorEmpty", "editorMessage", "emptyNewDirectoryButton",
   "libraryEmpty", "libraryLoading", "newArticleDirectory", "newArticleTitle", "newDirectoryButton",
-  "logoutButton", "saveButton", "saveState", "textInput"
+  "logoutButton", "saveButton", "saveState", "selectAudioButton", "textInput"
 ].map((id) => [id, document.querySelector(`#${id}`)]));
 
 const state = {
@@ -15,6 +15,7 @@ const state = {
   currentArticle: null,
   dirty: false,
   saving: false,
+  audioBusy: false,
   articleRequest: 0,
   openDirectoryIds: new Set()
 };
@@ -141,6 +142,10 @@ function createMiniButton(label, iconPath, handler, danger = false) {
 
 async function selectArticle(articleId, { skipGuard = false } = {}) {
   if (state.currentArticle?.id === articleId) return;
+  if (state.audioBusy) {
+    showEditorMessage("请等待音频操作完成。");
+    return;
+  }
   if (!skipGuard && !canDiscardChanges()) return;
 
   const requestId = ++state.articleRequest;
@@ -167,6 +172,7 @@ function populateEditor(article) {
   elements.articleTitle.value = article.title;
   elements.articleDirectory.value = article.directoryId;
   elements.textInput.value = article.content;
+  renderArticleAudio(article);
   updateCharacterCount();
   setSaveState("已保存");
   showEditorMessage("");
@@ -179,6 +185,7 @@ function clearEditor() {
   elements.editorEmpty.hidden = false;
   elements.articleTitle.value = "";
   elements.textInput.value = "";
+  renderArticleAudio(null);
   renderLibrary();
 }
 
@@ -230,7 +237,7 @@ async function saveArticle() {
 }
 
 async function deleteArticle() {
-  if (!state.currentArticle) return;
+  if (!state.currentArticle || state.audioBusy) return;
   if (!window.confirm(`确定删除文章“${state.currentArticle.title}”吗？删除后无法恢复。`)) return;
 
   try {
@@ -239,6 +246,116 @@ async function deleteArticle() {
     await refreshLibrary();
   } catch (error) {
     showEditorMessage(error.message);
+  }
+}
+
+function formatFileSize(bytes) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function renderArticleAudio(article) {
+  const audio = article?.audio;
+  elements.audioFileInput.value = "";
+  elements.selectAudioButton.textContent = audio ? "替换音频" : "上传音频";
+  elements.deleteAudioButton.hidden = !audio;
+  elements.adminAudioState.textContent = audio
+    ? `${audio.originalName} · ${formatFileSize(audio.size)}`
+    : "未上传音频";
+
+  elements.adminAudioPreview.pause();
+  if (audio && article) {
+    elements.adminAudioPreview.src = `/api/articles/${encodeURIComponent(article.id)}/audio?v=${encodeURIComponent(audio.updatedAt)}`;
+    elements.adminAudioPreview.hidden = false;
+    elements.adminAudioPreview.load();
+  } else {
+    elements.adminAudioPreview.removeAttribute("src");
+    elements.adminAudioPreview.hidden = true;
+    elements.adminAudioPreview.load();
+  }
+}
+
+function inferAudioType(file) {
+  if (file.type) return file.type;
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  return {
+    mp3: "audio/mpeg",
+    m4a: "audio/mp4",
+    aac: "audio/aac",
+    wav: "audio/wav",
+    ogg: "audio/ogg",
+    webm: "audio/webm"
+  }[extension] || "application/octet-stream";
+}
+
+async function uploadArticleAudio(file) {
+  if (!state.currentArticle || state.audioBusy || !file) return;
+  if (file.size > 100 * 1024 * 1024) {
+    showEditorMessage("音频文件不能超过 100 MB。");
+    return;
+  }
+
+  const articleId = state.currentArticle.id;
+  state.audioBusy = true;
+  elements.selectAudioButton.disabled = true;
+  elements.deleteAudioButton.disabled = true;
+  elements.adminAudioState.textContent = "正在上传音频…";
+  showEditorMessage("");
+
+  try {
+    const response = await fetch(`/api/articles/${encodeURIComponent(articleId)}/audio`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": inferAudioType(file),
+        "X-Audio-File-Name": encodeURIComponent(file.name)
+      },
+      body: file
+    });
+    const data = await response.json().catch(() => ({}));
+    if (handleUnauthorized(response)) throw new Error("登录状态已失效。");
+    if (!response.ok) throw new Error(data.error || `上传失败（${response.status}）`);
+
+    if (state.currentArticle?.id === articleId) {
+      state.currentArticle.audio = data.audio;
+      renderArticleAudio(state.currentArticle);
+      showEditorMessage("音频上传成功。");
+    }
+    await refreshLibrary();
+  } catch (error) {
+    if (state.currentArticle?.id === articleId) renderArticleAudio(state.currentArticle);
+    showEditorMessage(error.message);
+  } finally {
+    state.audioBusy = false;
+    elements.selectAudioButton.disabled = false;
+    elements.deleteAudioButton.disabled = false;
+  }
+}
+
+async function deleteArticleAudio() {
+  if (!state.currentArticle?.audio || state.audioBusy) return;
+  if (!window.confirm("确定删除这篇文章的音频吗？")) return;
+
+  const articleId = state.currentArticle.id;
+  state.audioBusy = true;
+  elements.selectAudioButton.disabled = true;
+  elements.deleteAudioButton.disabled = true;
+  elements.adminAudioState.textContent = "正在删除音频…";
+
+  try {
+    await api(`/api/articles/${encodeURIComponent(articleId)}/audio`, { method: "DELETE" });
+    if (state.currentArticle?.id === articleId) {
+      delete state.currentArticle.audio;
+      renderArticleAudio(state.currentArticle);
+      showEditorMessage("音频已删除。");
+    }
+    await refreshLibrary();
+  } catch (error) {
+    if (state.currentArticle?.id === articleId) renderArticleAudio(state.currentArticle);
+    showEditorMessage(error.message);
+  } finally {
+    state.audioBusy = false;
+    elements.selectAudioButton.disabled = false;
+    elements.deleteAudioButton.disabled = false;
   }
 }
 
@@ -372,6 +489,10 @@ function showEditorMessage(message) {
 }
 
 function canDiscardChanges() {
+  if (state.audioBusy) {
+    window.alert("请等待音频操作完成。");
+    return false;
+  }
   return !state.dirty || window.confirm("当前文章有未保存的修改，确定放弃这些修改吗？");
 }
 
@@ -381,6 +502,9 @@ elements.directoryForm.addEventListener("submit", submitDirectory);
 elements.articleForm.addEventListener("submit", submitArticle);
 elements.saveButton.addEventListener("click", saveArticle);
 elements.deleteArticleButton.addEventListener("click", deleteArticle);
+elements.selectAudioButton.addEventListener("click", () => elements.audioFileInput.click());
+elements.audioFileInput.addEventListener("change", () => uploadArticleAudio(elements.audioFileInput.files[0]));
+elements.deleteAudioButton.addEventListener("click", deleteArticleAudio);
 elements.textInput.addEventListener("input", markDirty);
 elements.articleTitle.addEventListener("input", markDirty);
 elements.articleDirectory.addEventListener("change", markDirty);
@@ -397,7 +521,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("beforeunload", (event) => {
-  if (!state.dirty) return;
+  if (!state.dirty && !state.audioBusy) return;
   event.preventDefault();
   event.returnValue = "";
 });
