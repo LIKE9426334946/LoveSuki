@@ -7,8 +7,8 @@ const elements = Object.fromEntries([
   "directoryList", "emptyState", "emptyStateHint", "emptyStateMessage", "fullscreenButton",
   "libraryEmpty", "libraryLoading", "playbackButton", "playbackLabel", "playIcon", "progressFill",
   "progressPercent", "progressText", "renderedText", "restartButton", "speedOutput", "speedRange",
-  "libraryBackdrop", "logoutButton", "mobileLibraryButton", "mobileLibraryCloseButton", "viewerLibraryPanel",
-  "statusDot", "statusText", "viewerArticleTitle"
+  "libraryBackdrop", "logoutButton", "mobileLibraryButton", "mobileLibraryCloseButton", "settingsButton",
+  "settingsCloseButton", "showAllButton", "viewerLibraryPanel", "viewerSettingsPanel", "statusDot", "statusText", "viewerArticleTitle"
 ].map((id) => [id, document.querySelector(`#${id}`)]));
 
 elements.displayPanel = document.querySelector(".display-panel");
@@ -39,6 +39,7 @@ createFullscreenController({ element: elements.displayPanel, button: elements.fu
 const mobileViewport = window.matchMedia("(max-width: 720px)");
 
 function setLibraryOpen(open, { restoreFocus = false } = {}) {
+  if (open) setSettingsOpen(false);
   const isMobile = mobileViewport.matches;
   const shouldOpen = Boolean(open && isMobile);
   document.body.classList.toggle("library-open", shouldOpen);
@@ -52,6 +53,16 @@ function setLibraryOpen(open, { restoreFocus = false } = {}) {
   } else if (restoreFocus && isMobile) {
     elements.mobileLibraryButton.focus();
   }
+}
+
+function setSettingsOpen(open, { restoreFocus = false } = {}) {
+  const isMobile = mobileViewport.matches;
+  const shouldOpen = Boolean(open && isMobile);
+  elements.displayPanel.classList.toggle("settings-open", shouldOpen);
+  elements.settingsButton.setAttribute("aria-expanded", String(shouldOpen));
+  if (isMobile) elements.viewerSettingsPanel.setAttribute("aria-hidden", String(!shouldOpen));
+  else elements.viewerSettingsPanel.removeAttribute("aria-hidden");
+  if (!shouldOpen && restoreFocus && isMobile) elements.settingsButton.focus();
 }
 
 async function api(path, options = {}) {
@@ -263,6 +274,7 @@ function updatePlaybackState(playbackState) {
   elements.statusDot.classList.toggle("is-playing", current.playing);
   elements.playbackButton.disabled = current.disabled;
   elements.restartButton.disabled = playbackState === "idle";
+  elements.showAllButton.disabled = playbackState === "idle" || playbackState === "completed";
   elements.playbackLabel.textContent = current.label;
   elements.playIcon.setAttribute("d", current.playing ? pausePath : playPath);
 }
@@ -312,6 +324,7 @@ function updateSpeed() {
 }
 
 elements.playbackButton.addEventListener("click", togglePlayback);
+elements.showAllButton.addEventListener("click", () => typewriter.finish());
 elements.audioPlaybackButton.addEventListener("click", toggleArticleAudio);
 elements.audioProgress.addEventListener("input", () => {
   const duration = elements.articleAudio.duration;
@@ -334,13 +347,33 @@ elements.speedRange.addEventListener("input", updateSpeed);
 elements.mobileLibraryButton.addEventListener("click", () => setLibraryOpen(true));
 elements.mobileLibraryCloseButton.addEventListener("click", () => setLibraryOpen(false, { restoreFocus: true }));
 elements.libraryBackdrop.addEventListener("click", () => setLibraryOpen(false, { restoreFocus: true }));
-const handleViewportModeChange = () => setLibraryOpen(false);
+elements.settingsButton.addEventListener("click", () => {
+  setSettingsOpen(!elements.displayPanel.classList.contains("settings-open"));
+});
+elements.settingsCloseButton.addEventListener("click", () => setSettingsOpen(false, { restoreFocus: true }));
+document.addEventListener("pointerdown", (event) => {
+  if (
+    elements.displayPanel.classList.contains("settings-open")
+    && !elements.viewerSettingsPanel.contains(event.target)
+    && !elements.settingsButton.contains(event.target)
+  ) {
+    setSettingsOpen(false);
+  }
+});
+const handleViewportModeChange = () => {
+  setLibraryOpen(false);
+  setSettingsOpen(false);
+};
 if (typeof mobileViewport.addEventListener === "function") mobileViewport.addEventListener("change", handleViewportModeChange);
 else mobileViewport.addListener?.(handleViewportModeChange);
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && document.body.classList.contains("library-open")) {
     setLibraryOpen(false, { restoreFocus: true });
+    return;
+  }
+  if (event.key === "Escape" && elements.displayPanel.classList.contains("settings-open")) {
+    setSettingsOpen(false, { restoreFocus: true });
     return;
   }
   const isInteractive = event.target.closest?.("button, input, select, textarea, a, audio");
@@ -353,5 +386,6 @@ document.addEventListener("keydown", (event) => {
 updateSpeed();
 updatePlaybackState("idle");
 setLibraryOpen(false);
+setSettingsOpen(false);
 setupLogout(elements.logoutButton);
 initialize();

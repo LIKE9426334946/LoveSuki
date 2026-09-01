@@ -71,6 +71,20 @@ export class Typewriter {
     this.setState("paused");
   }
 
+  finish() {
+    if (this.state === "idle" || this.state === "completed") return;
+    this.cancelFrame();
+    if (this.mode === "html") {
+      this.cursor.finish?.();
+    } else if (this.textNode) {
+      this.textNode.nodeValue = this.cursor.finish?.() ?? this.cursor.text ?? "";
+    }
+    this.lastAnchor = null;
+    this.resetTiming();
+    this.emitProgress();
+    this.setState("completed");
+  }
+
   restart(autoplay = true) {
     this.cancelFrame();
     this.cursor.reset();

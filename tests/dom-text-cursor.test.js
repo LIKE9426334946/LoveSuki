@@ -55,9 +55,9 @@ test("reveals Markdown structure only when its text position is reached", () => 
   }
 });
 
-test("restart hides revealed elements and finish reveals trailing elements", () => {
+test("restart hides revealed elements and finish reveals all remaining content", () => {
   const paragraph = element();
-  const paragraphText = textNode("字", paragraph);
+  const paragraphText = textNode("后续文字", paragraph);
   const trailingDivider = element();
   const restore = installDom([paragraph, paragraphText, trailingDivider]);
 
@@ -66,6 +66,8 @@ test("restart hides revealed elements and finish reveals trailing elements", () 
     cursor.next();
     cursor.finish();
     assert.equal(trailingDivider.hidden, false);
+    assert.equal(paragraphText.nodeValue, "后续文字");
+    assert.equal(cursor.position, cursor.total);
 
     cursor.reset();
     assert.equal(paragraph.hidden, true);

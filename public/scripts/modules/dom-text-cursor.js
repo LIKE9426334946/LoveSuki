@@ -78,15 +78,17 @@ export class DomTextCursor {
   }
 
   finish() {
-    while (this.entryIndex < this.entries.length) {
-      const entry = this.entries[this.entryIndex];
+    for (const entry of this.entries) {
       if (entry.type === "element") {
         entry.node.hidden = false;
         this.activeNode = entry.node;
+      } else {
+        entry.node.nodeValue = entry.text;
       }
-      this.entryIndex += 1;
     }
+    this.entryIndex = this.entries.length;
     this.iterator = null;
+    this.position = this.total;
     return this.activeNode;
   }
 }

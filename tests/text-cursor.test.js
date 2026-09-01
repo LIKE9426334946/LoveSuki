@@ -25,6 +25,14 @@ test("reset reuses the same source without allocating a character array", () => 
   assert.deepEqual(cursor.next(), { done: false, value: "爱" });
 });
 
+test("finish exposes the complete source immediately", () => {
+  const cursor = new TextCursor("立即显示全部");
+  cursor.next();
+  assert.equal(cursor.finish(), "立即显示全部");
+  assert.equal(cursor.position, cursor.total);
+  assert.equal(cursor.next().done, true);
+});
+
 test("constructing a long cursor uses the source length without a full count", () => {
   const text = "字".repeat(5_000_000);
   const cursor = new TextCursor(text);

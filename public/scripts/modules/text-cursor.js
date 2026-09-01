@@ -28,6 +28,12 @@ export class TextCursor {
       value
     };
   }
+
+  finish() {
+    this.position = this.total;
+    this.iterator = [][Symbol.iterator]();
+    return this.text;
+  }
 }
 
 export function countGraphemes(text, segmenter) {
