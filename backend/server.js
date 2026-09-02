@@ -1,9 +1,11 @@
 import { createServer } from "node:http";
+import { setDefaultResultOrder } from "node:dns";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApiRouter } from "./api/router.js";
 import { createAuthHandler } from "./auth-handler.js";
 import { AuthService } from "./services/auth-service.js";
+import { DailyArticleScheduler } from "./services/daily-article-scheduler.js";
 import { GitHubArticleSync } from "./services/github-article-sync.js";
 import { LibraryStore } from "./services/library-store.js";
 import { createStaticHandler } from "./static-handler.js";
@@ -12,6 +14,8 @@ const host = process.env.HOST || "127.0.0.1";
 const port = Number.parseInt(process.env.PORT || "3023", 10);
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const dataDirectory = process.env.DATA_DIR || path.resolve(currentDirectory, "../data");
+
+setDefaultResultOrder("ipv4first");
 
 if (!Number.isInteger(port) || port < 1 || port > 65535) {
   throw new Error("PORT must be an integer between 1 and 65535.");
@@ -22,8 +26,9 @@ await libraryStore.initialize();
 const authService = new AuthService(dataDirectory);
 await authService.initialize();
 const articleSync = new GitHubArticleSync({ libraryStore });
+const articleScheduler = new DailyArticleScheduler({ articleSync });
 const handleAuthRequest = createAuthHandler({ authService });
-const handleApiRequest = createApiRouter({ libraryStore, authService, articleSync });
+const handleApiRequest = createApiRouter({ libraryStore, authService });
 const handleStaticRequest = createStaticHandler({
   isAuthenticated: (request) => authService.isAuthenticated(request)
 });
@@ -41,10 +46,12 @@ server.on("clientError", (_error, socket) => {
 
 server.listen(port, host, () => {
   console.log(`LoveSuki is running at http://${host}:${port}`);
+  articleScheduler.start();
 });
 
 function shutdown(signal) {
   console.log(`Received ${signal}, shutting down LoveSuki...`);
+  articleScheduler.stop();
   server.close((error) => {
     if (error) {
       console.error(error);

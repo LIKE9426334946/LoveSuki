@@ -56,7 +56,7 @@ function sendAudio(request, response, audio) {
   stream.pipe(response);
 }
 
-export function createApiRouter({ libraryStore, authService, articleSync }) {
+export function createApiRouter({ libraryStore, authService }) {
   return async function handleApiRequest(request, response) {
     const url = new URL(request.url, "http://localhost");
     if (!url.pathname.startsWith("/api/")) return false;
@@ -72,11 +72,6 @@ export function createApiRouter({ libraryStore, authService, articleSync }) {
       }
 
       if (request.method === "GET" && url.pathname === "/api/library") {
-        try {
-          await articleSync?.sync();
-        } catch (error) {
-          console.warn(`Daily article sync failed: ${error.message}`);
-        }
         sendJson(response, 200, libraryStore.listLibrary());
         return true;
       }

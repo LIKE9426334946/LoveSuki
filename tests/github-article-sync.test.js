@@ -58,6 +58,18 @@ test("imports date-named GitHub Markdown files into the default directory", asyn
   const cachedResult = await sync.sync();
   assert.deepEqual(cachedResult, { checked: false, imported: 0, updated: 0 });
   assert.equal(requests.length, 2);
+
+  assert.equal(sync.hasImportedDate("2026-09-01"), true);
+  assert.deepEqual(await sync.syncDate("2026-09-01"), {
+    available: true,
+    checked: false,
+    imported: 0,
+    updated: 0
+  });
+
+  const missingDateResult = await sync.syncDate("2026-09-02");
+  assert.equal(missingDateResult.available, false);
+  assert.equal(missingDateResult.checked, true);
 });
 
 test("updates an imported article when its GitHub revision changes", async (context) => {

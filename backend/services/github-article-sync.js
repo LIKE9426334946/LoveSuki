@@ -23,6 +23,23 @@ export class GitHubArticleSync {
     this.syncPromise = null;
   }
 
+  getSourceKey(dateKey) {
+    return `github:${this.repository}:${this.articlesDirectory}/${dateKey}.md`;
+  }
+
+  hasImportedDate(dateKey) {
+    return Boolean(this.libraryStore.getArticleBySourceKey(this.getSourceKey(dateKey)));
+  }
+
+  async syncDate(dateKey) {
+    if (this.hasImportedDate(dateKey)) {
+      return { available: true, checked: false, imported: 0, updated: 0 };
+    }
+
+    const result = await this.sync({ force: true });
+    return { ...result, available: this.hasImportedDate(dateKey) };
+  }
+
   async sync({ force = false } = {}) {
     const age = Date.now() - this.lastCheckedAt;
     if (!force && this.lastCheckedAt > 0 && age < this.refreshIntervalMs) {
