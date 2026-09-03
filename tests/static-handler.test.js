@@ -33,6 +33,7 @@ test("serves a display-only home page and a separate admin route", async () => {
     assert.match(home, /id="settingsButton"/);
     assert.match(home, /id="showAllButton"/);
     assert.doesNotMatch(home, /newDirectoryButton|textInput|saveButton/);
+    assert.doesNotMatch(home, /<span>LoveSuki<\/span>/);
     assert.doesNotMatch(home, /把想说的话，慢慢写下来|已连接/);
 
     const adminResponse = await fetch(`${baseUrl}/admin`);
