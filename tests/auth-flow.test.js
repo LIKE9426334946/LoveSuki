@@ -98,7 +98,8 @@ test("requires login for both pages and all article APIs", async () => {
     assert.equal(settingsResponse.status, 200);
     assert.deepEqual((await settingsResponse.json()).settings, {
       dailyArticleSyncEnabled: true,
-      dailyArticleOrder: "ascending"
+      dailyArticleOrder: "ascending",
+      typingSpeedMs: 50
     });
 
     const updateSettings = await fetch(`${baseUrl}/api/settings`, {
@@ -109,9 +110,26 @@ test("requires login for both pages and all article APIs", async () => {
     assert.equal(updateSettings.status, 200);
     assert.deepEqual((await updateSettings.json()).settings, {
       dailyArticleSyncEnabled: false,
-      dailyArticleOrder: "descending"
+      dailyArticleOrder: "descending",
+      typingSpeedMs: 50
     });
     assert.equal(schedulerState.refreshes, 1);
+
+    const updateSpeed = await fetch(`${baseUrl}/api/settings`, {
+      method: "PATCH",
+      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ typingSpeedMs: 180 })
+    });
+    assert.equal(updateSpeed.status, 200);
+    assert.equal((await updateSpeed.json()).settings.typingSpeedMs, 180);
+    assert.equal(schedulerState.refreshes, 1);
+
+    const invalidSpeed = await fetch(`${baseUrl}/api/settings`, {
+      method: "PATCH",
+      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ typingSpeedMs: 501 })
+    });
+    assert.equal(invalidSpeed.status, 400);
 
     const createArticle = await fetch(`${baseUrl}/api/articles`, {
       method: "POST",
@@ -124,6 +142,19 @@ test("requires login for both pages and all article APIs", async () => {
     });
     assert.equal(createArticle.status, 201);
     const { article } = await createArticle.json();
+
+    const renameArticle = await fetch(`${baseUrl}/api/articles/${article.id}/title`, {
+      method: "PATCH",
+      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Renamed audio test" })
+    });
+    assert.equal(renameArticle.status, 200);
+    assert.equal((await renameArticle.json()).article.title, "Renamed audio test");
+    const renamedArticle = await fetch(`${baseUrl}/api/articles/${article.id}`, {
+      headers: { Cookie: cookie }
+    });
+    assert.equal((await renamedArticle.json()).article.content, "Audio article");
+
     const audioPayload = Buffer.from("test-audio-payload");
     const uploadAudio = await fetch(`${baseUrl}/api/articles/${article.id}/audio`, {
       method: "PUT",

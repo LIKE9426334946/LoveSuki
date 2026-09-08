@@ -305,6 +305,8 @@ h1 { margin: 0; font-size: 1.55rem; font-weight: 600; }
 .article-button.is-active { color: var(--rose-deep); background: white; box-shadow: 0 4px 14px rgba(87, 51, 63, 0.06); }
 .article-dot { width: 5px; height: 5px; flex: 0 0 auto; border-radius: 50%; background: currentColor; opacity: 0.55; }
 .article-title-text { overflow: hidden; font-size: 0.78rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.article-actions { flex: 0 0 auto; opacity: .72; transition: opacity 150ms ease; }
+.article-item:hover .article-actions, .article-actions:focus-within { opacity: 1; }
 .new-article-button { width: 100%; padding: 7px 9px; border: 0; color: var(--subtle); background: transparent; font-size: 0.72rem; text-align: left; cursor: pointer; }
 .new-article-button:hover { color: var(--rose); }
 
@@ -884,6 +886,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
   }
   .admin-page .directory-list { max-height: none; }
   .admin-page .directory-actions { opacity: 1; }
+  .admin-page .article-actions { opacity: 1; }
   .admin-page .editor-panel { min-height: 66dvh; padding: 23px 17px max(24px, env(safe-area-inset-bottom)); }
   .admin-page .admin-editor-content { height: auto; min-height: 64dvh; grid-template-rows: auto auto auto minmax(45dvh, 1fr) auto auto auto auto; }
   .admin-page textarea { min-height: 45dvh; resize: vertical; }

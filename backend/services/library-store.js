@@ -6,7 +6,8 @@ import { ApiError } from "../utils/http.js";
 const CATALOG_VERSION = 1;
 const DEFAULT_SETTINGS = Object.freeze({
   dailyArticleSyncEnabled: true,
-  dailyArticleOrder: "ascending"
+  dailyArticleOrder: "ascending",
+  typingSpeedMs: 50
 });
 const MONTH_DIRECTORY_PATTERN = /^\d{4}-\d{2}$/;
 const DAILY_ARTICLE_SOURCE_PATTERN = /daily-articles\/(\d{4}-\d{2}-\d{2})\.md$/;
@@ -36,9 +37,13 @@ function clone(value) {
 }
 
 function normalizeSettings(settings) {
+  const typingSpeedMs = Number(settings?.typingSpeedMs);
   return {
     dailyArticleSyncEnabled: settings?.dailyArticleSyncEnabled !== false,
-    dailyArticleOrder: settings?.dailyArticleOrder === "descending" ? "descending" : "ascending"
+    dailyArticleOrder: settings?.dailyArticleOrder === "descending" ? "descending" : "ascending",
+    typingSpeedMs: Number.isInteger(typingSpeedMs) && typingSpeedMs >= 10 && typingSpeedMs <= 500
+      ? typingSpeedMs
+      : DEFAULT_SETTINGS.typingSpeedMs
   };
 }
 
@@ -337,6 +342,19 @@ export class LibraryStore {
       await this.writeCatalog(nextCatalog);
       this.catalog = nextCatalog;
       return { ...clone(article), content };
+    });
+  }
+
+  renameArticle(articleId, title) {
+    return this.mutate(async () => {
+      const currentArticle = this.findArticle(articleId);
+      const nextCatalog = clone(this.catalog);
+      const article = nextCatalog.articles.find((item) => item.id === currentArticle.id);
+      article.title = title;
+      article.updatedAt = now();
+      await this.writeCatalog(nextCatalog);
+      this.catalog = nextCatalog;
+      return clone(article);
     });
   }
 

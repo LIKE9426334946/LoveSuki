@@ -37,6 +37,9 @@ const typewriter = new Typewriter({
 createFullscreenController({ element: elements.displayPanel, button: elements.fullscreenButton });
 
 const mobileViewport = window.matchMedia("(max-width: 720px)");
+let savedSpeed = Number(elements.speedRange.value);
+let speedSaveTimer = null;
+let speedSaveRequest = 0;
 
 function setLibraryOpen(open, { restoreFocus = false } = {}) {
   if (open) setSettingsOpen(false);
@@ -78,7 +81,13 @@ async function api(path, options = {}) {
 
 async function initialize() {
   try {
-    const data = await api("/api/library");
+    const [data, { settings }] = await Promise.all([
+      api("/api/library"),
+      api("/api/settings")
+    ]);
+    elements.speedRange.value = String(settings.typingSpeedMs);
+    savedSpeed = settings.typingSpeedMs;
+    updateSpeed();
     state.library = data;
     elements.libraryLoading.hidden = true;
     elements.directoryList.hidden = data.directories.length === 0;
@@ -320,7 +329,35 @@ function updateSpeed() {
   const maximum = Number(elements.speedRange.max);
   const percent = ((value - minimum) / (maximum - minimum)) * 100;
   elements.speedOutput.textContent = `${value} ms`;
+  elements.speedOutput.removeAttribute("title");
   elements.speedRange.style.setProperty("--range-progress", `${percent}%`);
+}
+
+function scheduleSpeedSave() {
+  if (speedSaveTimer) window.clearTimeout(speedSaveTimer);
+  speedSaveTimer = window.setTimeout(saveSpeedSetting, 350);
+}
+
+async function saveSpeedSetting() {
+  if (speedSaveTimer) window.clearTimeout(speedSaveTimer);
+  speedSaveTimer = null;
+  const typingSpeedMs = Number(elements.speedRange.value);
+  if (typingSpeedMs === savedSpeed) return;
+
+  const requestId = ++speedSaveRequest;
+  try {
+    const { settings } = await api("/api/settings", {
+      method: "PATCH",
+      body: JSON.stringify({ typingSpeedMs })
+    });
+    if (requestId !== speedSaveRequest) return;
+    savedSpeed = settings.typingSpeedMs;
+  } catch (error) {
+    if (requestId === speedSaveRequest) {
+      elements.speedOutput.textContent = `${typingSpeedMs} ms · 保存失败`;
+      elements.speedOutput.title = error.message;
+    }
+  }
 }
 
 elements.playbackButton.addEventListener("click", togglePlayback);
@@ -343,7 +380,11 @@ elements.articleAudio.addEventListener("error", () => {
   if (elements.articleAudio.getAttribute("src")) elements.audioTitle.textContent = "音频加载失败";
 });
 elements.restartButton.addEventListener("click", () => typewriter.restart());
-elements.speedRange.addEventListener("input", updateSpeed);
+elements.speedRange.addEventListener("input", () => {
+  updateSpeed();
+  scheduleSpeedSave();
+});
+elements.speedRange.addEventListener("change", saveSpeedSetting);
 elements.mobileLibraryButton.addEventListener("click", () => setLibraryOpen(true));
 elements.mobileLibraryCloseButton.addEventListener("click", () => setLibraryOpen(false, { restoreFocus: true }));
 elements.libraryBackdrop.addEventListener("click", () => setLibraryOpen(false, { restoreFocus: true }));

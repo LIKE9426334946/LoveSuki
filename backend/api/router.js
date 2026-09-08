@@ -102,8 +102,15 @@ export function createApiRouter({ libraryStore, authService, articleScheduler })
           changes.dailyArticleOrder = body.dailyArticleOrder;
         }
 
+        if (Object.hasOwn(body, "typingSpeedMs")) {
+          if (!Number.isInteger(body.typingSpeedMs) || body.typingSpeedMs < 10 || body.typingSpeedMs > 500) {
+            throw new ApiError(400, "文字显示速度必须是 10 到 500 毫秒之间的整数。");
+          }
+          changes.typingSpeedMs = body.typingSpeedMs;
+        }
+
         const settings = await libraryStore.updateSettings(changes);
-        articleScheduler?.refresh();
+        if (Object.hasOwn(changes, "dailyArticleSyncEnabled")) articleScheduler?.refresh();
         sendJson(response, 200, { settings });
         return true;
       }
@@ -142,6 +149,17 @@ export function createApiRouter({ libraryStore, authService, articleScheduler })
           content: requireText(body.content ?? "", "文章内容", ARTICLE_CONTENT_LIMIT, { allowEmpty: true })
         });
         sendJson(response, 201, { article });
+        return true;
+      }
+
+      const articleTitleMatch = url.pathname.match(/^\/api\/articles\/([^/]+)\/title$/);
+      if (articleTitleMatch && request.method === "PATCH") {
+        const body = await readJsonBody(request);
+        const article = await libraryStore.renameArticle(
+          decodeURIComponent(articleTitleMatch[1]),
+          requireText(body.title, "文章标题", 120)
+        );
+        sendJson(response, 200, { article });
         return true;
       }
 

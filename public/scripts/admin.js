@@ -6,8 +6,9 @@ const elements = Object.fromEntries([
   "dailyArticleOrder", "dailyArticleSyncEnabled", "directoryDialogMode", "directoryDialogTitle", "directoryForm", "directoryList", "directoryName",
   "editingDirectoryId", "editorContent", "editorEmpty", "editorMessage", "emptyNewDirectoryButton",
   "libraryEmpty", "libraryLoading", "newArticleDirectory", "newArticleTitle", "newDirectoryButton",
-  "logoutButton", "saveButton", "saveState", "saveSyncSettingsButton", "selectAudioButton", "syncSettingsDialog",
-  "syncSettingsForm", "syncSettingsMessage", "textInput"
+  "logoutButton", "renameArticleDialog", "renameArticleForm", "renameArticleMessage", "renameArticleTitle", "renamingArticleId",
+  "saveButton", "saveState", "saveSyncSettingsButton", "selectAudioButton", "syncSettingsDialog", "syncSettingsForm",
+  "syncSettingsMessage", "textInput"
 ].map((id) => [id, document.querySelector(`#${id}`)]));
 
 const state = {
@@ -152,7 +153,10 @@ function renderLibrary() {
 
         const row = document.createElement("div");
         row.className = "article-item";
-        row.append(button);
+        const actions = document.createElement("div");
+        actions.className = "article-actions";
+        actions.append(createMiniButton("重命名文章", editPath, () => openRenameArticleDialog(article)));
+        row.append(button, actions);
         articleList.append(row);
       }
 
@@ -419,6 +423,42 @@ function openRenameDirectoryDialog(directory) {
   queueMicrotask(() => elements.directoryName.select());
 }
 
+function openRenameArticleDialog(article) {
+  if (state.currentArticle?.id === article.id && state.dirty) {
+    window.alert("请先保存当前文章的修改，再进行重命名。");
+    return;
+  }
+
+  elements.renamingArticleId.value = article.id;
+  elements.renameArticleTitle.value = article.title;
+  elements.renameArticleMessage.textContent = "";
+  elements.renameArticleDialog.showModal();
+  queueMicrotask(() => elements.renameArticleTitle.select());
+}
+
+async function submitRenameArticle(event) {
+  event.preventDefault();
+  const articleId = elements.renamingArticleId.value;
+  const title = elements.renameArticleTitle.value.trim();
+  if (!articleId || !title) return;
+
+  try {
+    const { article } = await api(`/api/articles/${encodeURIComponent(articleId)}/title`, {
+      method: "PATCH",
+      body: JSON.stringify({ title })
+    });
+    if (state.currentArticle?.id === articleId) {
+      state.currentArticle = { ...state.currentArticle, ...article };
+      elements.articleTitle.value = article.title;
+      setSaveState("已保存");
+    }
+    elements.renameArticleDialog.close();
+    await refreshLibrary();
+  } catch (error) {
+    elements.renameArticleMessage.textContent = error.message;
+  }
+}
+
 async function submitDirectory(event) {
   event.preventDefault();
   const name = elements.directoryName.value.trim();
@@ -542,6 +582,7 @@ elements.syncSettingsForm.addEventListener("submit", saveSyncSettings);
 elements.emptyNewDirectoryButton.addEventListener("click", openDirectoryDialog);
 elements.directoryForm.addEventListener("submit", submitDirectory);
 elements.articleForm.addEventListener("submit", submitArticle);
+elements.renameArticleForm.addEventListener("submit", submitRenameArticle);
 elements.saveButton.addEventListener("click", saveArticle);
 elements.deleteArticleButton.addEventListener("click", deleteArticle);
 elements.selectAudioButton.addEventListener("click", () => elements.audioFileInput.click());

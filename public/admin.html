@@ -151,6 +151,21 @@
       </form>
     </dialog>
 
+    <dialog id="renameArticleDialog" class="app-dialog">
+      <form id="renameArticleForm" method="dialog">
+        <input id="renamingArticleId" type="hidden" />
+        <p class="eyebrow">文章管理</p>
+        <h2>重命名文章</h2>
+        <label for="renameArticleTitle">新标题</label>
+        <input id="renameArticleTitle" type="text" maxlength="120" autocomplete="off" required />
+        <p id="renameArticleMessage" class="dialog-message" role="alert"></p>
+        <div class="dialog-actions">
+          <button class="button button-quiet" type="button" data-close-dialog="renameArticleDialog">取消</button>
+          <button class="button button-primary" type="submit">确认重命名</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="syncSettingsDialog" class="app-dialog settings-dialog">
       <form id="syncSettingsForm" method="dialog">
         <p class="eyebrow">自动同步</p>

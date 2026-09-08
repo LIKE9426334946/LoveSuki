@@ -24,6 +24,10 @@ test("persists directories and Markdown articles across restarts", async (contex
   const reloadedArticle = await reloadedStore.getArticle(article.id);
   assert.equal(reloadedArticle.title, "日记");
   assert.equal(reloadedArticle.content, content);
+  await reloadedStore.renameArticle(article.id, "新的日记标题");
+  const renamedArticle = await reloadedStore.getArticle(article.id);
+  assert.equal(renamedArticle.title, "新的日记标题");
+  assert.equal(renamedArticle.content, content);
   assert.equal(
     reloadedStore.listLibrary().directories.find((item) => item.id === directory.id).articles.length,
     1
@@ -114,7 +118,8 @@ test("persists daily sync settings and orders imported articles inside month dir
 
   await store.updateSettings({
     dailyArticleSyncEnabled: false,
-    dailyArticleOrder: "descending"
+    dailyArticleOrder: "descending",
+    typingSpeedMs: 180
   });
   monthDirectory = store.listLibrary().directories.find((item) => item.name === "2026-09");
   assert.deepEqual(monthDirectory.articles.map((item) => item.title), ["2026-09-02", "2026-09-01"]);
@@ -123,6 +128,7 @@ test("persists daily sync settings and orders imported articles inside month dir
   await reloadedStore.initialize();
   assert.deepEqual(reloadedStore.getSettings(), {
     dailyArticleSyncEnabled: false,
-    dailyArticleOrder: "descending"
+    dailyArticleOrder: "descending",
+    typingSpeedMs: 180
   });
 });
