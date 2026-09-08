@@ -37,6 +37,7 @@ function describeError(error) {
 export class DailyArticleScheduler {
   constructor({
     articleSync,
+    isEnabled = () => true,
     retryIntervalMs = DEFAULT_RETRY_INTERVAL_MS,
     now = () => new Date(),
     setTimer = setTimeout,
@@ -44,6 +45,7 @@ export class DailyArticleScheduler {
     logger = console
   }) {
     this.articleSync = articleSync;
+    this.isEnabled = isEnabled;
     this.retryIntervalMs = retryIntervalMs;
     this.now = now;
     this.setTimer = setTimer;
@@ -56,7 +58,7 @@ export class DailyArticleScheduler {
   start() {
     if (this.running) return;
     this.running = true;
-    this.planFromCurrentTime();
+    this.refresh();
   }
 
   stop() {
@@ -65,7 +67,19 @@ export class DailyArticleScheduler {
     this.timer = null;
   }
 
+  refresh() {
+    if (this.timer) this.clearTimer(this.timer);
+    this.timer = null;
+    if (!this.running) return;
+    this.planFromCurrentTime();
+  }
+
   planFromCurrentTime() {
+    if (!this.isEnabled()) {
+      this.logger.log("Daily article sync is disabled; no checks are scheduled.");
+      return;
+    }
+
     const current = this.now();
     const dateKey = getBeijingDateKey(current);
     const scheduledAt = getScheduledAt(dateKey);
@@ -85,7 +99,7 @@ export class DailyArticleScheduler {
   }
 
   schedule(dateKey, delayMs) {
-    if (!this.running) return;
+    if (!this.running || !this.isEnabled()) return;
     if (this.timer) this.clearTimer(this.timer);
     this.timer = this.setTimer(() => {
       this.timer = null;
@@ -95,7 +109,13 @@ export class DailyArticleScheduler {
   }
 
   async attempt(dateKey) {
-    if (!this.running) return;
+    if (!this.running || !this.isEnabled()) return;
+
+    const today = getBeijingDateKey(this.now());
+    if (dateKey !== today) {
+      this.refresh();
+      return;
+    }
 
     if (this.articleSync.hasImportedDate(dateKey)) {
       this.complete(dateKey);

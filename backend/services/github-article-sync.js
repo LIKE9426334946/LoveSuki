@@ -1,6 +1,4 @@
-const DEFAULT_DIRECTORY_NAME = "默认目录";
-const DEFAULT_REFRESH_INTERVAL_MS = 2 * 60 * 1000;
-const DATE_FILE_PATTERN = /^\d{4}-\d{2}-\d{2}\.md$/;
+const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 export class GitHubArticleSync {
   constructor({
@@ -8,19 +6,15 @@ export class GitHubArticleSync {
     repository = "LIKE9426334946/LoveSuki",
     branch = "main",
     articlesDirectory = "daily-articles",
-    directoryName = DEFAULT_DIRECTORY_NAME,
-    refreshIntervalMs = DEFAULT_REFRESH_INTERVAL_MS,
     fetchImpl = globalThis.fetch
   }) {
     this.libraryStore = libraryStore;
     this.repository = repository;
     this.branch = branch;
     this.articlesDirectory = articlesDirectory;
-    this.directoryName = directoryName;
-    this.refreshIntervalMs = refreshIntervalMs;
     this.fetchImpl = fetchImpl;
-    this.lastCheckedAt = 0;
     this.syncPromise = null;
+    this.syncingDate = null;
   }
 
   getSourceKey(dateKey) {
@@ -32,78 +26,66 @@ export class GitHubArticleSync {
   }
 
   async syncDate(dateKey) {
+    if (!DATE_KEY_PATTERN.test(dateKey)) throw new Error("Daily article date must use YYYY-MM-DD.");
     if (this.hasImportedDate(dateKey)) {
       return { available: true, checked: false, imported: 0, updated: 0 };
     }
 
-    const result = await this.sync({ force: true });
-    return { ...result, available: this.hasImportedDate(dateKey) };
-  }
+    if (this.syncPromise && this.syncingDate === dateKey) return this.syncPromise;
+    if (this.syncPromise) await this.syncPromise;
 
-  async sync({ force = false } = {}) {
-    const age = Date.now() - this.lastCheckedAt;
-    if (!force && this.lastCheckedAt > 0 && age < this.refreshIntervalMs) {
-      return { checked: false, imported: 0, updated: 0 };
-    }
-
-    if (this.syncPromise) return this.syncPromise;
-    this.syncPromise = this.performSync().finally(() => {
+    this.syncingDate = dateKey;
+    this.syncPromise = this.performDateSync(dateKey).finally(() => {
       this.syncPromise = null;
+      this.syncingDate = null;
     });
     return this.syncPromise;
   }
 
-  async performSync() {
-    const directoryUrl = new URL(
-      `https://api.github.com/repos/${this.repository}/contents/${this.articlesDirectory}`
-    );
-    directoryUrl.searchParams.set("ref", this.branch);
+  async performDateSync(dateKey) {
+    const filePath = `${this.articlesDirectory}/${dateKey}.md`;
+    const fileUrl = new URL(`https://api.github.com/repos/${this.repository}/contents/${filePath}`);
+    fileUrl.searchParams.set("ref", this.branch);
 
-    const response = await this.fetchImpl(directoryUrl, {
+    const response = await this.fetchImpl(fileUrl, {
       headers: {
         Accept: "application/vnd.github+json",
         "User-Agent": "LoveSuki-daily-article-sync"
       }
     });
-    this.lastCheckedAt = Date.now();
 
-    if (response.status === 404) return { checked: true, imported: 0, updated: 0 };
+    if (response.status === 404) {
+      return { available: false, checked: true, imported: 0, updated: 0 };
+    }
     if (!response.ok) {
-      throw new Error(`GitHub article list request failed with status ${response.status}.`);
+      throw new Error(`GitHub article metadata request failed with status ${response.status}.`);
     }
 
-    const entries = await response.json();
-    if (!Array.isArray(entries)) throw new Error("GitHub article list response is invalid.");
-
-    const files = entries
-      .filter((entry) => entry.type === "file" && DATE_FILE_PATTERN.test(entry.name))
-      .sort((left, right) => left.name.localeCompare(right.name));
-    let imported = 0;
-    let updated = 0;
-
-    for (const file of files) {
-      const sourceKey = `github:${this.repository}:${file.path}`;
-      const existing = this.libraryStore.getArticleBySourceKey(sourceKey);
-      if (existing?.sourceRevision === file.sha) continue;
-
-      const contentResponse = await this.fetchImpl(file.download_url, {
-        headers: { "User-Agent": "LoveSuki-daily-article-sync" }
-      });
-      if (!contentResponse.ok) {
-        throw new Error(`GitHub article request failed for ${file.name} with status ${contentResponse.status}.`);
-      }
-
-      const result = await this.libraryStore.upsertImportedArticle({
-        directoryName: this.directoryName,
-        title: file.name.slice(0, -3),
-        content: await contentResponse.text(),
-        sourceKey,
-        sourceRevision: file.sha
-      });
-      if (result.imported) imported += 1;
-      else updated += 1;
+    const file = await response.json();
+    if (file?.type !== "file" || !file.download_url || !file.sha) {
+      throw new Error(`GitHub article metadata is invalid for ${dateKey}.`);
     }
 
-    return { checked: true, imported, updated };
+    const contentResponse = await this.fetchImpl(file.download_url, {
+      headers: { "User-Agent": "LoveSuki-daily-article-sync" }
+    });
+    if (!contentResponse.ok) {
+      throw new Error(`GitHub article request failed for ${dateKey}.md with status ${contentResponse.status}.`);
+    }
+
+    const result = await this.libraryStore.upsertImportedArticle({
+      directoryName: dateKey.slice(0, 7),
+      title: dateKey,
+      content: await contentResponse.text(),
+      sourceKey: this.getSourceKey(dateKey),
+      sourceRevision: file.sha
+    });
+
+    return {
+      available: true,
+      checked: true,
+      imported: result.imported ? 1 : 0,
+      updated: result.imported ? 0 : 1
+    };
   }
 }

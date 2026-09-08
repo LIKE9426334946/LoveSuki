@@ -91,3 +91,38 @@ test("streams, replaces and deletes an article audio file", async (context) => {
   assert.equal((await reloadedStore.getArticle(article.id)).audio, undefined);
   await assert.rejects(() => reloadedStore.getArticleAudio(article.id), /还没有音频/);
 });
+
+test("persists daily sync settings and orders imported articles inside month directories", async (context) => {
+  const dataDirectory = await mkdtemp(path.join(os.tmpdir(), "lovesuki-settings-"));
+  context.after(() => rm(dataDirectory, { recursive: true, force: true }));
+
+  const store = new LibraryStore(dataDirectory);
+  await store.initialize();
+  for (const dateKey of ["2026-09-02", "2026-09-01"]) {
+    await store.upsertImportedArticle({
+      directoryName: "默认目录",
+      title: dateKey,
+      content: `# ${dateKey}`,
+      sourceKey: `github:LIKE9426334946/LoveSuki:daily-articles/${dateKey}.md`,
+      sourceRevision: dateKey
+    });
+  }
+
+  assert.equal((await store.organizeImportedDailyArticles()).changed, true);
+  let monthDirectory = store.listLibrary().directories.find((item) => item.name === "2026-09");
+  assert.deepEqual(monthDirectory.articles.map((item) => item.title), ["2026-09-01", "2026-09-02"]);
+
+  await store.updateSettings({
+    dailyArticleSyncEnabled: false,
+    dailyArticleOrder: "descending"
+  });
+  monthDirectory = store.listLibrary().directories.find((item) => item.name === "2026-09");
+  assert.deepEqual(monthDirectory.articles.map((item) => item.title), ["2026-09-02", "2026-09-01"]);
+
+  const reloadedStore = new LibraryStore(dataDirectory);
+  await reloadedStore.initialize();
+  assert.deepEqual(reloadedStore.getSettings(), {
+    dailyArticleSyncEnabled: false,
+    dailyArticleOrder: "descending"
+  });
+});

@@ -23,12 +23,16 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
 
 const libraryStore = new LibraryStore(dataDirectory);
 await libraryStore.initialize();
+await libraryStore.organizeImportedDailyArticles();
 const authService = new AuthService(dataDirectory);
 await authService.initialize();
 const articleSync = new GitHubArticleSync({ libraryStore });
-const articleScheduler = new DailyArticleScheduler({ articleSync });
+const articleScheduler = new DailyArticleScheduler({
+  articleSync,
+  isEnabled: () => libraryStore.getSettings().dailyArticleSyncEnabled
+});
 const handleAuthRequest = createAuthHandler({ authService });
-const handleApiRequest = createApiRouter({ libraryStore, authService });
+const handleApiRequest = createApiRouter({ libraryStore, authService, articleScheduler });
 const handleStaticRequest = createStaticHandler({
   isAuthenticated: (request) => authService.isAuthenticated(request)
 });

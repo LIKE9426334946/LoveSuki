@@ -20,8 +20,13 @@ async function withAuthenticatedServer(run) {
     return username === "test-user" && password === "test-password";
   };
 
+  const schedulerState = { refreshes: 0 };
   const handleAuthRequest = createAuthHandler({ authService });
-  const handleApiRequest = createApiRouter({ libraryStore, authService });
+  const handleApiRequest = createApiRouter({
+    libraryStore,
+    authService,
+    articleScheduler: { refresh() { schedulerState.refreshes += 1; } }
+  });
   const handleStaticRequest = createStaticHandler({
     isAuthenticated: (request) => authService.isAuthenticated(request)
   });
@@ -38,7 +43,7 @@ async function withAuthenticatedServer(run) {
 
   try {
     const address = server.address();
-    await run(`http://127.0.0.1:${address.port}`);
+    await run(`http://127.0.0.1:${address.port}`, schedulerState);
   } finally {
     await new Promise((resolve) => server.close(resolve));
     await rm(dataDirectory, { recursive: true, force: true });
@@ -46,7 +51,7 @@ async function withAuthenticatedServer(run) {
 }
 
 test("requires login for both pages and all article APIs", async () => {
-  await withAuthenticatedServer(async (baseUrl) => {
+  await withAuthenticatedServer(async (baseUrl, schedulerState) => {
     for (const page of ["/", "/admin"]) {
       const response = await fetch(`${baseUrl}${page}`, { redirect: "manual" });
       assert.equal(response.status, 302);
@@ -88,6 +93,25 @@ test("requires login for both pages and all article APIs", async () => {
     const library = await fetch(`${baseUrl}/api/library`, { headers: { Cookie: cookie } });
     assert.equal(library.status, 200);
     const libraryData = await library.json();
+
+    const settingsResponse = await fetch(`${baseUrl}/api/settings`, { headers: { Cookie: cookie } });
+    assert.equal(settingsResponse.status, 200);
+    assert.deepEqual((await settingsResponse.json()).settings, {
+      dailyArticleSyncEnabled: true,
+      dailyArticleOrder: "ascending"
+    });
+
+    const updateSettings = await fetch(`${baseUrl}/api/settings`, {
+      method: "PATCH",
+      headers: { Cookie: cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ dailyArticleSyncEnabled: false, dailyArticleOrder: "descending" })
+    });
+    assert.equal(updateSettings.status, 200);
+    assert.deepEqual((await updateSettings.json()).settings, {
+      dailyArticleSyncEnabled: false,
+      dailyArticleOrder: "descending"
+    });
+    assert.equal(schedulerState.refreshes, 1);
 
     const createArticle = await fetch(`${baseUrl}/api/articles`, {
       method: "POST",

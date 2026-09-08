@@ -43,6 +43,9 @@ test("serves a display-only home page and a separate admin route", async () => {
     assert.match(admin, /newDirectoryButton/);
     assert.match(admin, /textInput/);
     assert.match(admin, /id="audioFileInput"/);
+    assert.match(admin, /id="adminSettingsButton"/);
+    assert.match(admin, /id="dailyArticleSyncEnabled"/);
+    assert.match(admin, /id="dailyArticleOrder"/);
     assert.doesNotMatch(admin, /id="desktopPet"/);
 
     const stylesResponse = await fetch(`${baseUrl}/styles/main.css`);

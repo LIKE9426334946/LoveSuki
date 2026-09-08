@@ -599,6 +599,59 @@ input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 3px s
 .dialog-message { min-height: 18px; margin: 9px 0 0; color: var(--danger); font-size: .7rem; }
 .dialog-actions { margin-top: 18px; display: flex; justify-content: flex-end; gap: 8px; }
 
+.settings-dialog { width: min(470px, calc(100% - 30px)); }
+.settings-dialog .switch-setting,
+.settings-dialog .select-setting {
+  margin: 12px 0;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  color: var(--ink);
+  background: rgba(255,255,255,.65);
+}
+.switch-setting-copy, .select-setting > span { min-width: 0; }
+.settings-dialog strong { display: block; color: #4f4045; font-size: .8rem; }
+.settings-dialog small { display: block; margin-top: 5px; color: var(--subtle); font-size: .67rem; font-weight: 500; line-height: 1.55; }
+.settings-dialog .switch-setting input[type="checkbox"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  opacity: 0;
+}
+.switch-control {
+  position: relative;
+  width: 44px;
+  height: 25px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgba(128,103,111,.2);
+  transition: background 180ms ease;
+  cursor: pointer;
+}
+.switch-control::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 2px 7px rgba(61,31,42,.22);
+  transition: transform 180ms ease;
+}
+.switch-setting input:checked + .switch-control { background: var(--rose); }
+.switch-setting input:checked + .switch-control::after { transform: translateX(19px); }
+.switch-setting input:focus-visible + .switch-control { outline: 3px solid rgba(169,79,105,.24); outline-offset: 3px; }
+.settings-dialog .select-setting { align-items: flex-end; flex-direction: column; }
+.settings-dialog .select-setting > span { width: 100%; }
+.settings-dialog .select-setting select { width: 100%; margin: 0; }
+
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-visible, .display-surface:focus-visible { outline: 3px solid rgba(169,79,105,.24); outline-offset: 3px; }
 

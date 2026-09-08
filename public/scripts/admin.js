@@ -1,12 +1,13 @@
 import { handleUnauthorized, setupLogout } from "./modules/auth.js";
 
 const elements = Object.fromEntries([
-  "adminAudioPreview", "adminAudioState", "articleDialog", "articleDialogMessage", "articleDirectory",
+  "adminAudioPreview", "adminAudioState", "adminSettingsButton", "articleDialog", "articleDialogMessage", "articleDirectory",
   "articleForm", "articleTitle", "audioFileInput", "characterCount", "deleteArticleButton", "deleteAudioButton", "directoryDialog", "directoryDialogMessage",
-  "directoryDialogMode", "directoryDialogTitle", "directoryForm", "directoryList", "directoryName",
+  "dailyArticleOrder", "dailyArticleSyncEnabled", "directoryDialogMode", "directoryDialogTitle", "directoryForm", "directoryList", "directoryName",
   "editingDirectoryId", "editorContent", "editorEmpty", "editorMessage", "emptyNewDirectoryButton",
   "libraryEmpty", "libraryLoading", "newArticleDirectory", "newArticleTitle", "newDirectoryButton",
-  "logoutButton", "saveButton", "saveState", "selectAudioButton", "textInput"
+  "logoutButton", "saveButton", "saveState", "saveSyncSettingsButton", "selectAudioButton", "syncSettingsDialog",
+  "syncSettingsForm", "syncSettingsMessage", "textInput"
 ].map((id) => [id, document.querySelector(`#${id}`)]));
 
 const state = {
@@ -16,6 +17,10 @@ const state = {
   dirty: false,
   saving: false,
   audioBusy: false,
+  settings: {
+    dailyArticleSyncEnabled: true,
+    dailyArticleOrder: "ascending"
+  },
   articleRequest: 0,
   openDirectoryIds: new Set()
 };
@@ -38,7 +43,7 @@ async function api(path, options = {}) {
 
 async function initialize() {
   try {
-    await refreshLibrary();
+    await Promise.all([refreshLibrary(), loadSettings()]);
     const firstDirectory = state.library.directories[0];
     if (!firstDirectory) return;
 
@@ -50,6 +55,41 @@ async function initialize() {
     }
   } catch (error) {
     elements.libraryLoading.textContent = `无法读取文章库：${error.message}`;
+  }
+}
+
+async function loadSettings() {
+  const { settings } = await api("/api/settings");
+  state.settings = settings;
+}
+
+function openSyncSettings() {
+  elements.dailyArticleSyncEnabled.checked = state.settings.dailyArticleSyncEnabled;
+  elements.dailyArticleOrder.value = state.settings.dailyArticleOrder;
+  elements.syncSettingsMessage.textContent = "";
+  elements.syncSettingsDialog.showModal();
+}
+
+async function saveSyncSettings(event) {
+  event.preventDefault();
+  elements.saveSyncSettingsButton.disabled = true;
+  elements.syncSettingsMessage.textContent = "正在保存…";
+
+  try {
+    const { settings } = await api("/api/settings", {
+      method: "PATCH",
+      body: JSON.stringify({
+        dailyArticleSyncEnabled: elements.dailyArticleSyncEnabled.checked,
+        dailyArticleOrder: elements.dailyArticleOrder.value
+      })
+    });
+    state.settings = settings;
+    await refreshLibrary();
+    elements.syncSettingsDialog.close();
+  } catch (error) {
+    elements.syncSettingsMessage.textContent = error.message;
+  } finally {
+    elements.saveSyncSettingsButton.disabled = false;
   }
 }
 
@@ -497,6 +537,8 @@ function canDiscardChanges() {
 }
 
 elements.newDirectoryButton.addEventListener("click", openDirectoryDialog);
+elements.adminSettingsButton.addEventListener("click", openSyncSettings);
+elements.syncSettingsForm.addEventListener("submit", saveSyncSettings);
 elements.emptyNewDirectoryButton.addEventListener("click", openDirectoryDialog);
 elements.directoryForm.addEventListener("submit", submitDirectory);
 elements.articleForm.addEventListener("submit", submitArticle);

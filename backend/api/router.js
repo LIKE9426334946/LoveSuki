@@ -56,7 +56,7 @@ function sendAudio(request, response, audio) {
   stream.pipe(response);
 }
 
-export function createApiRouter({ libraryStore, authService }) {
+export function createApiRouter({ libraryStore, authService, articleScheduler }) {
   return async function handleApiRequest(request, response) {
     const url = new URL(request.url, "http://localhost");
     if (!url.pathname.startsWith("/api/")) return false;
@@ -73,6 +73,38 @@ export function createApiRouter({ libraryStore, authService }) {
 
       if (request.method === "GET" && url.pathname === "/api/library") {
         sendJson(response, 200, libraryStore.listLibrary());
+        return true;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/settings") {
+        sendJson(response, 200, { settings: libraryStore.getSettings() });
+        return true;
+      }
+
+      if (request.method === "PATCH" && url.pathname === "/api/settings") {
+        const body = await readJsonBody(request);
+        if (!body || typeof body !== "object" || Array.isArray(body)) {
+          throw new ApiError(400, "设置内容格式不正确。");
+        }
+        const changes = {};
+
+        if (Object.hasOwn(body, "dailyArticleSyncEnabled")) {
+          if (typeof body.dailyArticleSyncEnabled !== "boolean") {
+            throw new ApiError(400, "每日文章同步开关必须是布尔值。");
+          }
+          changes.dailyArticleSyncEnabled = body.dailyArticleSyncEnabled;
+        }
+
+        if (Object.hasOwn(body, "dailyArticleOrder")) {
+          if (!["ascending", "descending"].includes(body.dailyArticleOrder)) {
+            throw new ApiError(400, "文章顺序只能设置为顺序或逆序。");
+          }
+          changes.dailyArticleOrder = body.dailyArticleOrder;
+        }
+
+        const settings = await libraryStore.updateSettings(changes);
+        articleScheduler?.refresh();
+        sendJson(response, 200, { settings });
         return true;
       }
 

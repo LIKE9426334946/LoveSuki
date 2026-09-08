@@ -19,6 +19,10 @@
           <span>LoveSuki Admin</span>
         </a>
         <div class="topbar-actions">
+          <button id="adminSettingsButton" class="page-link page-link-button" type="button" aria-label="每日文章设置">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M19.1 13a7.7 7.7 0 0 0 .1-1 7.7 7.7 0 0 0-.1-1l2.1-1.6-2-3.4-2.6 1a8.7 8.7 0 0 0-1.7-1L14.5 3h-4L10 5.9a8.7 8.7 0 0 0-1.7 1L5.7 6l-2 3.4L5.8 11a7.7 7.7 0 0 0-.1 1 7.7 7.7 0 0 0 .1 1l-2.1 1.6 2 3.4 2.6-1a8.7 8.7 0 0 0 1.7 1l.5 2.9h4L15 18a8.7 8.7 0 0 0 1.7-1l2.6 1 2-3.4-2.2-1.6ZM12.5 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z" /></svg>
+            <span>设置</span>
+          </button>
           <a class="page-link" href="/" aria-label="返回显示页面">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5c5.5 0 9.7 5.1 10.5 6.1a1.4 1.4 0 0 1 0 1.8C21.7 13.9 17.5 19 12 19S2.3 13.9 1.5 12.9a1.4 1.4 0 0 1 0-1.8C2.3 10.1 6.5 5 12 5Zm0 2c-4 0-7.4 3.5-8.4 5 1 1.5 4.4 5 8.4 5s7.4-3.5 8.4-5c-1-1.5-4.4-5-8.4-5Zm0 1.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Zm0 2a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z" /></svg>
             <span>显示页面</span>
@@ -143,6 +147,39 @@
         <div class="dialog-actions">
           <button class="button button-quiet" type="button" data-close-dialog="articleDialog">取消</button>
           <button class="button button-primary" type="submit">创建文章</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="syncSettingsDialog" class="app-dialog settings-dialog">
+      <form id="syncSettingsForm" method="dialog">
+        <p class="eyebrow">自动同步</p>
+        <h2>每日文章设置</h2>
+
+        <label class="switch-setting" for="dailyArticleSyncEnabled">
+          <span class="switch-setting-copy">
+            <strong>每天拉取文章</strong>
+            <small>开启后每天 07:10 检查当天文章，失败会持续重试。</small>
+          </span>
+          <input id="dailyArticleSyncEnabled" type="checkbox" role="switch" />
+          <span class="switch-control" aria-hidden="true"></span>
+        </label>
+
+        <label class="select-setting" for="dailyArticleOrder">
+          <span>
+            <strong>月目录中的文章顺序</strong>
+            <small>只调整自动导入的日期文章显示顺序。</small>
+          </span>
+          <select id="dailyArticleOrder">
+            <option value="ascending">顺序（日期从早到晚）</option>
+            <option value="descending">逆序（日期从晚到早）</option>
+          </select>
+        </label>
+
+        <p id="syncSettingsMessage" class="dialog-message" role="alert"></p>
+        <div class="dialog-actions">
+          <button class="button button-quiet" type="button" data-close-dialog="syncSettingsDialog">取消</button>
+          <button id="saveSyncSettingsButton" class="button button-primary" type="submit">保存设置</button>
         </div>
       </form>
     </dialog>

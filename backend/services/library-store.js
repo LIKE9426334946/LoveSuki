@@ -4,6 +4,12 @@ import path from "node:path";
 import { ApiError } from "../utils/http.js";
 
 const CATALOG_VERSION = 1;
+const DEFAULT_SETTINGS = Object.freeze({
+  dailyArticleSyncEnabled: true,
+  dailyArticleOrder: "ascending"
+});
+const MONTH_DIRECTORY_PATTERN = /^\d{4}-\d{2}$/;
+const DAILY_ARTICLE_SOURCE_PATTERN = /daily-articles\/(\d{4}-\d{2}-\d{2})\.md$/;
 export const ARTICLE_AUDIO_LIMIT = 100 * 1024 * 1024;
 const AUDIO_TYPES = new Map([
   ["audio/mpeg", ".mp3"],
@@ -29,6 +35,17 @@ function clone(value) {
   return structuredClone(value);
 }
 
+function normalizeSettings(settings) {
+  return {
+    dailyArticleSyncEnabled: settings?.dailyArticleSyncEnabled !== false,
+    dailyArticleOrder: settings?.dailyArticleOrder === "descending" ? "descending" : "ascending"
+  };
+}
+
+function getImportedDate(article) {
+  return DAILY_ARTICLE_SOURCE_PATTERN.exec(article.sourceKey || "")?.[1] || null;
+}
+
 export class LibraryStore {
   constructor(dataDirectory) {
     this.dataDirectory = path.resolve(dataDirectory);
@@ -52,6 +69,7 @@ export class LibraryStore {
       const timestamp = now();
       this.catalog = {
         version: CATALOG_VERSION,
+        settings: clone(DEFAULT_SETTINGS),
         directories: [{
           id: randomUUID(),
           name: "默认目录",
@@ -73,11 +91,76 @@ export class LibraryStore {
     }
 
     return {
-      directories: this.catalog.directories.map((directory) => ({
-        ...clone(directory),
-        articles: articleGroups.get(directory.id) || []
-      }))
+      directories: this.catalog.directories.map((directory) => {
+        const articles = articleGroups.get(directory.id) || [];
+        if (MONTH_DIRECTORY_PATTERN.test(directory.name)) {
+          const direction = this.catalog.settings.dailyArticleOrder === "descending" ? -1 : 1;
+          articles.sort((left, right) => {
+            const leftDate = getImportedDate(left);
+            const rightDate = getImportedDate(right);
+            if (leftDate && rightDate) return leftDate.localeCompare(rightDate) * direction;
+            if (leftDate) return -1;
+            if (rightDate) return 1;
+            return 0;
+          });
+        }
+        return { ...clone(directory), articles };
+      })
     };
+  }
+
+  getSettings() {
+    this.assertInitialized();
+    return clone(this.catalog.settings);
+  }
+
+  updateSettings(changes) {
+    return this.mutate(async () => {
+      const nextCatalog = clone(this.catalog);
+      nextCatalog.settings = normalizeSettings({ ...nextCatalog.settings, ...changes });
+      await this.writeCatalog(nextCatalog);
+      this.catalog = nextCatalog;
+      return clone(nextCatalog.settings);
+    });
+  }
+
+  organizeImportedDailyArticles() {
+    return this.mutate(async () => {
+      const nextCatalog = clone(this.catalog);
+      const directoriesByName = new Map(nextCatalog.directories.map((item) => [item.name, item]));
+      let changed = false;
+
+      for (const article of nextCatalog.articles) {
+        const dateKey = getImportedDate(article);
+        if (!dateKey) continue;
+
+        const directoryName = dateKey.slice(0, 7);
+        let directory = directoriesByName.get(directoryName);
+        if (!directory) {
+          const timestamp = now();
+          directory = {
+            id: randomUUID(),
+            name: directoryName,
+            createdAt: timestamp,
+            updatedAt: timestamp
+          };
+          nextCatalog.directories.unshift(directory);
+          directoriesByName.set(directoryName, directory);
+          changed = true;
+        }
+
+        if (article.directoryId !== directory.id) {
+          article.directoryId = directory.id;
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        await this.writeCatalog(nextCatalog);
+        this.catalog = nextCatalog;
+      }
+      return { changed };
+    });
   }
 
   async getArticle(articleId) {
@@ -141,6 +224,7 @@ export class LibraryStore {
         nextCatalog.articles.push(article);
       } else {
         article.title = title;
+        article.directoryId = directory.id;
         article.updatedAt = timestamp;
         article.sourceRevision = sourceRevision;
       }
@@ -413,6 +497,6 @@ export class LibraryStore {
     ) {
       throw new Error("LoveSuki data/catalog.json has an unsupported format.");
     }
-    return catalog;
+    return { ...catalog, settings: normalizeSettings(catalog.settings) };
   }
 }

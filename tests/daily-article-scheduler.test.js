@@ -129,3 +129,62 @@ test("service restart skips a date that is already stored locally", () => {
   assert.ok(harness.timers[0].delay > 23 * 60 * 60 * 1000);
   scheduler.stop();
 });
+
+test("disabling sync cancels scheduled checks and enabling it replans immediately", () => {
+  const currentTime = new Date("2026-09-01T23:20:00Z");
+  let enabled = false;
+  const harness = createTimerHarness();
+  const scheduler = new DailyArticleScheduler({
+    articleSync: {
+      hasImportedDate: () => false,
+      async syncDate() {
+        throw new Error("must not run while disabled");
+      }
+    },
+    isEnabled: () => enabled,
+    now: () => currentTime,
+    setTimer: harness.setTimer,
+    clearTimer: harness.clearTimer,
+    logger: { log() {}, warn() {} }
+  });
+
+  scheduler.start();
+  assert.equal(harness.timers.length, 0);
+
+  enabled = true;
+  scheduler.refresh();
+  assert.equal(harness.timers.length, 1);
+  assert.equal(harness.timers[0].delay, 0);
+
+  enabled = false;
+  scheduler.refresh();
+  assert.equal(harness.timers.length, 0);
+  scheduler.stop();
+});
+
+test("a retry never imports yesterday's article after the Beijing date changes", async () => {
+  const currentTime = new Date("2026-09-02T23:20:00Z");
+  let syncCalls = 0;
+  const harness = createTimerHarness();
+  const scheduler = new DailyArticleScheduler({
+    articleSync: {
+      hasImportedDate: () => false,
+      async syncDate() {
+        syncCalls += 1;
+        return { available: true };
+      }
+    },
+    now: () => currentTime,
+    setTimer: harness.setTimer,
+    clearTimer: harness.clearTimer,
+    logger: { log() {}, warn() {} }
+  });
+
+  scheduler.start();
+  harness.timers.length = 0;
+  await scheduler.attempt("2026-09-02");
+  assert.equal(syncCalls, 0);
+  assert.equal(harness.timers.length, 1);
+  assert.equal(harness.timers[0].delay, 0);
+  scheduler.stop();
+});
